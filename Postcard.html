@@ -178,6 +178,13 @@
   }
 
   canvas { display: none; }
+  
+  .fruit-img{
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -211,11 +218,11 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
 const fruits = [
-  { emoji:"🍎", name:"蘋果仔" },
-  { emoji:"🍌", name:"香蕉君" },
-  { emoji:"🍇", name:"葡萄團" },
-  { emoji:"🍉", name:"西瓜寶" },
-  { emoji:"🍊", name:"橘子丸" }
+  { name:"蘋果仔",    img:"images/apple.png" },
+  { name:"香蕉君",    img:"images/banana.png" },
+  { name:"葡萄團",    img:"images/grape.png" },
+  { name:"西瓜寶",    img:"images/watermelon.png" },
+  { name:"橘子丸",    img:"images/orange.png" }
 ];
 const auroraColors = [
   "radial-gradient(circle at top left, #9be7ff, #2c3e50)",
@@ -245,15 +252,8 @@ drawBtn.addEventListener("click", ()=>{
   downloadBtn.style.display="none";
 
   document.querySelector(".left").style.background=aurora;
-  fruitCharacter.innerHTML=`
-    <div class="fruit">${fruit.emoji}
-      <div class="eye left"></div>
-      <div class="eye right"></div>
-      <div class="limb arm-left"></div>
-      <div class="limb arm-right"></div>
-      <div class="limb leg-left"></div>
-      <div class="limb leg-right"></div>
-    </div>
+  fruitCharacter.innerHTML = `
+    <img class="fruit-img" src="${fruit.img}" alt="${fruit.name}">
   `;
   fruitName.textContent=fruit.name;
   dateText.textContent=`📅 ${getToday()}`;
