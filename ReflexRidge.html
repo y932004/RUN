@@ -44,6 +44,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script async src="https://docs.opencv.org/4.5.2/opencv.js"></script>
 
 <script>
 // === THREE 基本設定 ===
@@ -64,19 +65,81 @@ const floor=new THREE.Mesh(new THREE.PlaneGeometry(20,200,10,50),new THREE.MeshP
 floor.rotation.x=-Math.PI/2;
 scene.add(floor);
 
-// === 骨架人 ===
+// === 像素人物 ===
 const skeletonGroup=new THREE.Group();
-const mat=new THREE.MeshBasicMaterial({color:0x00ffff});
-const bones=[];
+const pixelMaterial=new THREE.MeshBasicMaterial({color:0x00ff00});
+const bodyParts={};
 
-function addBone(x,y,z){
-  const geo=new THREE.SphereGeometry(0.1,8,8);
-  const bone=new THREE.Mesh(geo,mat);
-  bone.position.set(x,y,z);
-  skeletonGroup.add(bone);
-  bones.push(bone);
+// 建立像素人物身體部分 - 固定結構化身體
+function createPixelCharacter(){
+  // 頭部 - 最上面
+  const headGeo=new THREE.BoxGeometry(0.5,0.5,0.3);
+  const head=new THREE.Mesh(headGeo,pixelMaterial);
+  head.position.y=1.9;
+  skeletonGroup.add(head);
+  bodyParts.head=head;
+  
+  // 軀幹 - 中間
+  const torsoGeo=new THREE.BoxGeometry(0.6,0.8,0.3);
+  const torso=new THREE.Mesh(torsoGeo,pixelMaterial);
+  torso.position.y=1.2;
+  skeletonGroup.add(torso);
+  bodyParts.torso=torso;
+  
+  // 左上臂
+  const leftArmGeo=new THREE.BoxGeometry(0.2,0.6,0.2);
+  const leftArm=new THREE.Mesh(leftArmGeo,pixelMaterial);
+  leftArm.position.set(-0.5,1.5,0);
+  skeletonGroup.add(leftArm);
+  bodyParts.leftArm=leftArm;
+  
+  // 右上臂
+  const rightArm=new THREE.Mesh(leftArmGeo.clone(),pixelMaterial);
+  rightArm.position.set(0.5,1.5,0);
+  skeletonGroup.add(rightArm);
+  bodyParts.rightArm=rightArm;
+  
+  // 左下臂
+  const leftForearmGeo=new THREE.BoxGeometry(0.15,0.5,0.15);
+  const leftForearm=new THREE.Mesh(leftForearmGeo,pixelMaterial);
+  leftForearm.position.set(-0.65,0.9,0);
+  skeletonGroup.add(leftForearm);
+  bodyParts.leftForearm=leftForearm;
+  
+  // 右下臂
+  const rightForearm=new THREE.Mesh(leftForearmGeo.clone(),pixelMaterial);
+  rightForearm.position.set(0.65,0.9,0);
+  skeletonGroup.add(rightForearm);
+  bodyParts.rightForearm=rightForearm;
+  
+  // 左腿
+  const leftLegGeo=new THREE.BoxGeometry(0.25,0.8,0.25);
+  const leftLeg=new THREE.Mesh(leftLegGeo,pixelMaterial);
+  leftLeg.position.set(-0.25,0.4,0);
+  skeletonGroup.add(leftLeg);
+  bodyParts.leftLeg=leftLeg;
+  
+  // 右腿
+  const rightLeg=new THREE.Mesh(leftLegGeo.clone(),pixelMaterial);
+  rightLeg.position.set(0.25,0.4,0);
+  skeletonGroup.add(rightLeg);
+  bodyParts.rightLeg=rightLeg;
+  
+  // 左腳
+  const leftFootGeo=new THREE.BoxGeometry(0.2,0.15,0.35);
+  const leftFoot=new THREE.Mesh(leftFootGeo,pixelMaterial);
+  leftFoot.position.set(-0.25,0,0);
+  skeletonGroup.add(leftFoot);
+  bodyParts.leftFoot=leftFoot;
+  
+  // 右腳
+  const rightFoot=new THREE.Mesh(leftFootGeo.clone(),pixelMaterial);
+  rightFoot.position.set(0.25,0,0);
+  skeletonGroup.add(rightFoot);
+  bodyParts.rightFoot=rightFoot;
 }
-for(let i=0;i<33;i++)addBone(0,1.5,0);
+
+createPixelCharacter();
 scene.add(skeletonGroup);
 
 // === 障礙物 ===
@@ -86,6 +149,7 @@ function spawnObstacle(z){
   const mat=new THREE.MeshPhongMaterial({color:0xff4444});
   const obs=new THREE.Mesh(geo,mat);
   obs.position.set((Math.random()-0.5)*6,0.75,z);
+  obs.userData={dodged:false, hit:false};
   scene.add(obs);
   obstacles.push(obs);
 }
@@ -104,6 +168,8 @@ let score=0;
 let timeLeft=60;
 let gameOver=false;
 let currentAction="--";
+let lastPoseData=null;
+let obstaclesAvoided=0;
 
 // === Mediapipe Pose ===
 const pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
@@ -118,57 +184,267 @@ async function startCam(){
 }
 startCam();
 
-// === 動作分析 ===
-function onPose(res){
-  if(!res.poseLandmarks)return;
-  const lm=res.poseLandmarks;
-  // 更新骨架點
-  lm.forEach((p,i)=>{
-    if(bones[i]){
-      bones[i].position.set((p.x-0.5)*6,2.5-p.y*5,-0.2);
-    }
-  });
-
+// === OpenCV 動作分析 ===
+function detectActionWithOpenCV(lm) {
+  if (!lm || lm.length < 33) return "--";
+  
+  // 關鍵關節點
   const LHip=lm[23], RHip=lm[24];
   const LKnee=lm[25], RKnee=lm[26];
   const LShoulder=lm[11], RShoulder=lm[12];
+  const LElbow=lm[13], RElbow=lm[14];
+  const LWrist=lm[15], RWrist=lm[16];
   const Nose=lm[0];
+  
+  // 計算身體中心
   const centerX=(LShoulder.x+RShoulder.x)/2;
   const centerY=(LHip.y+RHip.y)/2;
-
+  const shoulderY=(LShoulder.y+RShoulder.y)/2;
+  const hipY=(LHip.y+RHip.y)/2;
+  
+  // 使用 OpenCV 概念計算關節角度
+  function getAngle(p1, p2, p3) {
+    const v1={x:p1.x-p2.x, y:p1.y-p2.y};
+    const v2={x:p3.x-p2.x, y:p3.y-p2.y};
+    const dot=v1.x*v2.x+v1.y*v2.y;
+    const det=v1.x*v2.y-v1.y*v2.x;
+    return Math.atan2(det,dot);
+  }
+  
+  // 計算膝蓋彎曲程度
+  const leftKneeAngle=getAngle(LHip, LKnee, LShoulder);
+  const rightKneeAngle=getAngle(RHip, RKnee, RShoulder);
+  const avgKneeAngle=(Math.abs(leftKneeAngle)+Math.abs(rightKneeAngle))/2;
+  
+  // 計算肘部彎曲
+  const leftElbowAngle=getAngle(LShoulder, LElbow, LWrist);
+  const rightElbowAngle=getAngle(RShoulder, RElbow, RWrist);
+  
   let action="--";
-  if((LKnee.y+RKnee.y)/2 < (LHip.y+RHip.y)/2 - 0.15) action="Jump";
-  else if((LShoulder.y+RShoulder.y)/2 > (LHip.y+RHip.y)/2 - 0.05) action="Crouch";
-  else if(centerX < 0.4) action="Left";
-  else if(centerX > 0.6) action="Right";
+  
+  // Jump: 膝蓋高度降低（蹲下），準備跳躍
+  if((LKnee.y+RKnee.y)/2 < hipY - 0.12) {
+    action="Jump";
+  }
+  // Crouch: 身體向下彎曲
+  else if(shoulderY > hipY - 0.08) {
+    action="Crouch";
+  }
+  // Lean Left: 身體重心向左
+  else if(centerX < 0.35) {
+    action="Left";
+  }
+  // Lean Right: 身體重心向右
+  else if(centerX > 0.65) {
+    action="Right";
+  }
+  // Raise Arms: 雙臂舉起
+  else if((LWrist.y+RWrist.y)/2 < shoulderY - 0.1) {
+    action="Raise";
+  }
+  
+  return action;
+}
 
+// === 動作分析回調函數 ===
+function onPose(res){
+  if(!res.poseLandmarks)return;
+  const lm=res.poseLandmarks;
+  
+  // 保存當前姿勢數據用於碰撞檢測
+  lastPoseData={
+    landmarks: lm,
+    timestamp: Date.now()
+  };
+  
+  // === 簡化的座標轉換 ===
+  // MediaPipe 座標: x(0-1), y(0-1), z(深度)
+  // 遊戲座標: x(-3到+3), y(0到2.5)
+  
+  const Nose=lm[0];
+  const LShoulder=lm[11], RShoulder=lm[12];
+  const LElbow=lm[13], RElbow=lm[14];
+  const LWrist=lm[15], RWrist=lm[16];
+  const LHip=lm[23], RHip=lm[24];
+  const LKnee=lm[25], RKnee=lm[26];
+  const LAnkle=lm[27], RAnkle=lm[28];
+  
+  // 身體中心位置（基於肩膀和臀部）
+  const centerX=(LShoulder.x+RShoulder.x+LHip.x+RHip.x)/4;
+  
+  // 移動整個虛擬人物到正確的水平位置
+  skeletonGroup.position.x=(centerX-0.5)*6;
+  skeletonGroup.position.y=0; // 固定在地面上方
+  skeletonGroup.position.z=0;
+  
+  // === 根據真人動作調整虛擬人物的姿勢 ===
+  
+  // 計算膝蓋高度（用於判斷是否跳躍或蹲下）
+  const avgKneeY=(LKnee.y+RKnee.y)/2;
+  const avgHipY=(LHip.y+RHip.y)/2;
+  const avgShoulderY=(LShoulder.y+RShoulder.y)/2;
+  
+  // 計算手臂位置（用於判斷是否舉起）
+  const avgWristY=(LWrist.y+RWrist.y)/2;
+  
+  // 計算身體左右傾斜
+  const leftShoulder_x=(LShoulder.x-0.5)*6;
+  const rightShoulder_x=(RShoulder.x-0.5)*6;
+  
+  // 根據姿勢調整虛擬人物高度（蹲下/站立/跳躍）
+  if(avgKneeY < avgHipY - 0.15) {
+    // Jump - 膝蓋往上抬
+    skeletonGroup.position.y=0.5;
+    bodyParts.leftLeg.scale.y=0.7;
+    bodyParts.rightLeg.scale.y=0.7;
+  } else if(avgShoulderY > avgHipY - 0.08) {
+    // Crouch - 身體向下
+    skeletonGroup.position.y=-0.3;
+    bodyParts.torso.scale.y=0.7;
+    bodyParts.leftLeg.scale.y=0.6;
+    bodyParts.rightLeg.scale.y=0.6;
+  } else {
+    // 正常站立
+    skeletonGroup.position.y=0;
+    bodyParts.torso.scale.y=1;
+    bodyParts.leftLeg.scale.y=1;
+    bodyParts.rightLeg.scale.y=1;
+  }
+  
+  // 手臂動作 - 舉起時
+  if(avgWristY < avgShoulderY - 0.1) {
+    bodyParts.leftArm.position.y=1.8;
+    bodyParts.rightArm.position.y=1.8;
+    bodyParts.leftForearm.position.y=1.2;
+    bodyParts.rightForearm.position.y=1.2;
+  } else {
+    bodyParts.leftArm.position.y=1.5;
+    bodyParts.rightArm.position.y=1.5;
+    bodyParts.leftForearm.position.y=0.9;
+    bodyParts.rightForearm.position.y=0.9;
+  }
+  
+  // === 動作判斷 ===
+  let action=detectActionWithOpenCV(lm);
+  
+  // 根據動作改變顏色
+  if(action==="Jump"){
+    pixelMaterial.color.set(0xff00ff); // 紫色
+  } else if(action==="Crouch"){
+    pixelMaterial.color.set(0xffff00); // 黃色
+  } else if(action==="Left"){
+    pixelMaterial.color.set(0x0088ff); // 藍色
+  } else if(action==="Right"){
+    pixelMaterial.color.set(0xff8800); // 橙色
+  } else if(action==="Raise"){
+    pixelMaterial.color.set(0xff0088); // 粉紅色
+  } else {
+    pixelMaterial.color.set(0x00ff00); // 綠色
+  }
+
+  // 計分邏輯
   if(action!==currentAction && action!=="--"){
     score+=1;
     scoreEl.textContent="分數："+score;
     currentAction=action;
   }
   actionEl.textContent="動作："+action;
+
 }
 
 // === 遊戲邏輯 ===
+function checkCollisionWithAction(obstacle, action, poseData){
+  // 虛擬人物的當前位置（基於 skeletonGroup）
+  const humanX=skeletonGroup.position.x;
+  const humanY=skeletonGroup.position.y;
+  
+  // 障礙物的碰撞箱範圍
+  const obsLeft=obstacle.position.x-0.75;
+  const obsRight=obstacle.position.x+0.75;
+  const obsTop=1.5;
+  
+  if(!poseData || !poseData.landmarks) return true;
+  
+  const lm=poseData.landmarks;
+  const LHip=lm[23], RHip=lm[24];
+  const LKnee=lm[25], RKnee=lm[26];
+  
+  // 簡化的碰撞檢測：根據動作判斷
+  const avgKneeY=(LKnee.y+RKnee.y)/2;
+  const avgHipY=(LHip.y+RHip.y)/2;
+  
+  // 檢查水平位置是否在障礙物範圍內
+  const isInObstacleX=humanX > obsLeft && humanX < obsRight;
+  
+  if(!isInObstacleX) return false; // 已經閃到一邊，躲過了
+  
+  // 在障礙物範圍內，檢查垂直位置
+  if(action==="Jump"){
+    // 跳躍時檢查身體高度
+    if(humanY > 0.3) {
+      return false; // 跳得夠高，躲過
+    }
+  } else if(action==="Crouch"){
+    // 蹲下時檢查身體是否低於障礙物
+    if(humanY < -0.2 && avgKneeY < avgHipY - 0.1) {
+      return false; // 蹲得夠低，躲過
+    }
+  } else if(action==="Left"){
+    // 向左移動
+    if(humanX < obsLeft-0.3) {
+      return false; // 在左邊安全區
+    }
+  } else if(action==="Right"){
+    // 向右移動
+    if(humanX > obsRight+0.3) {
+      return false; // 在右邊安全區
+    }
+  }
+  
+  // 預設碰撞
+  return true;
+}
+
 function updateObstacles(){
-  obstacles.forEach(o=>{
+  obstacles.forEach((o, index)=>{
     o.position.z+=0.1;
+    
     if(o.position.z>5){
+      // 障礙物離開視野，重置
       o.position.z=-200;
       o.position.x=(Math.random()-0.5)*6;
+      o.userData.dodged=false;
+      o.userData.hit=false;
     }
-    // 判定撞擊
-    const px=skeletonGroup.position.x;
-    const py=skeletonGroup.position.y;
-    const pz=0;
-    if(Math.abs(o.position.z-pz)<1 && Math.abs(o.position.x-px)<1 && py<1.5){
-      score=Math.max(0,score-2);
-      scoreEl.textContent="分數："+score;
-      o.position.z=-200;
+    
+    // 當障礙物接近時（z=-0.5左右），進行碰撞檢測
+    if(!o.userData.dodged && !o.userData.hit && Math.abs(o.position.z-0)<1.5){
+      const willCollide=checkCollisionWithAction(o, currentAction, lastPoseData);
+      
+      if(!willCollide){
+        // 成功躲過
+        o.userData.dodged=true;
+        o.material.color.set(0x00ff00); // 變綠色表示躲過
+        score+=5; // 躲過加5分
+        scoreEl.textContent="分數："+score;
+        obstaclesAvoided++;
+      } else if(Math.abs(o.position.z)<0.3){
+        // 碰撞
+        o.userData.hit=true;
+        o.material.color.set(0xff0000); // 變紅色表示碰撞
+        score=Math.max(0,score-3); // 碰撞扣3分
+        scoreEl.textContent="分數："+score;
+      }
+    }
+    
+    // 恢復原色
+    if(o.userData.dodged && o.position.z>2){
+      o.material.color.set(0xff4444);
+      o.userData.dodged=false;
     }
   });
 }
+
 
 // === 倒數 ===
 const timer=setInterval(()=>{
