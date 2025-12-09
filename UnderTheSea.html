@@ -3,22 +3,30 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>Aqua Fix VR Mode – 爆裂扣分版（優化圈圈數）</title>
+<title>Aqua Fix VR Mode – 完美生態平衡版</title>
 <style>
   body{margin:0;overflow:hidden;background:#000;font-family:"Microsoft JhengHei",sans-serif;color:#fff;}
   #score,#timer{position:absolute;top:10px;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:8px;font-size:20px;z-index:3}
   #score{left:10px}#timer{right:10px}
   video,canvas{position:absolute;top:0;left:0;width:100%;height:auto}
+  #assets { display: none; }
 </style>
 </head>
 <body>
 <div id="score">分數：0</div>
 <div id="timer">剩餘時間：60秒</div>
-<video id="video" autoplay playsinline muted></video>
+<video id="video" autoplay playsinline muted style="display:none"></video>
 <canvas id="gameCanvas"></canvas>
 
+<div id="assets">
+  <img id="fish1" src="./imageSea/cutefish.png">
+  <img id="fish2" src="./imageSea/goldfish.png">
+  <img id="fish3" src="./imageSea/jellyfish.png">
+  <img id="crab"     src="./imageSea/crab.png">
+  <img id="starfish" src="./imageSea/starfish.png">
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
@@ -31,26 +39,81 @@ const timerEl=document.getElementById("timer");
 canvas.width=640;canvas.height=480;
 
 let score=0,timeLeft=60;
-let holes=[],sharks=[],bubbles=[];
-let handsData=[],poseLandmarks=[];
-const holeRadius=35,dangerTime=4;
+let holes=[], creatures=[], bubbles=[]; 
+let handsData=[]; 
+const holeRadius=35, dangerTime=4;
+let isProcessing = false;
 
-//--- 產生破洞（新增上限限制） ---
+// --- 讀取圖片 ---
+const fishImages = [
+    document.getElementById("fish1"),
+    document.getElementById("fish2"),
+    document.getElementById("fish3")
+];
+const crabImg = document.getElementById("crab");
+const starfishImg = document.getElementById("starfish");
+
 function spawnHole(){
-  // 限制同時最多出現 3 個圈圈
   if(holes.length >= 3) return;
-
   const x=Math.random()*(canvas.width-2*holeRadius)+holeRadius;
   const y=Math.random()*(canvas.height-2*holeRadius)+holeRadius;
-  holes.push({x,y,created:Date.now(),danger:false,dangerTriggered:false});
+  holes.push({x,y,created:Date.now()});
 }
 
-//--- 鯊魚生成 ---
-function spawnShark(){
-  sharks.push({x:-120,y:Math.random()*canvas.height,speed:5});
+// --- 生物生成邏輯 ---
+function spawnCreature(){
+  const rand = Math.random();
+  
+  if(rand < 0.1) {
+      // --- 生成螃蟹 (新增數量限制) ---
+      
+      // ★★★ 關鍵修改：先檢查畫面上螃蟹有幾隻 ★★★
+      const currentCrabs = creatures.filter(c => c.type === 'crab').length;
+      if (currentCrabs >= 2) return; // 如果已經有 2 隻，就不生了！
+
+      creatures.push({
+          type: 'crab',
+          img: crabImg,
+          x: Math.random() * (canvas.width - 100), 
+          y: canvas.height - 30, // 貼地位置
+          speed: 1.5, 
+          scale: 0.8,
+          dir: 1,
+          targetWidth: 80 
+      });
+  } else if (rand < 0.25) {
+      // --- 生成海星 ---
+      creatures.push({
+          type: 'starfish',
+          img: starfishImg,
+          x: -50,
+          y: Math.random() * (canvas.height - 150),
+          speed: 1.5,
+          scale: 0.6,
+          angle: 0, 
+          rotSpeed: 0.02,
+          targetWidth: 60 
+      });
+  } else {
+      // --- 生成游泳的魚/水母 ---
+      const fishImg = fishImages[Math.floor(Math.random() * fishImages.length)];
+      // 從右邊生成，往左游
+      const startX = canvas.width + 100; 
+      const swimSpeed = -(2 + Math.random() * 2); 
+
+      creatures.push({
+          type: 'fish',
+          img: fishImg,
+          x: startX,
+          y: Math.random() * (canvas.height - 150) + 50,
+          speed: swimSpeed,
+          scale: 0.9,
+          wiggleOffset: Math.random() * 100,
+          targetWidth: 75 
+      });
+  }
 }
 
-//--- 氣泡 ---
 function addBubble(x,y,strength,color="rgba(200,230,255,0.7)"){
   for(let i=0;i<strength;i++){
     bubbles.push({x:x+Math.random()*20-10,y:y+Math.random()*10-5,
@@ -58,7 +121,6 @@ function addBubble(x,y,strength,color="rgba(200,230,255,0.7)"){
   }
 }
 
-//--- 倒數 ---
 function startTimer(){
   const timer=setInterval(()=>{
     timeLeft--;
@@ -67,11 +129,12 @@ function startTimer(){
   },1000);
 }
 
-//--- 主畫面 ---
 function draw(){
   ctx.save();
   ctx.scale(-1,1);
-  ctx.drawImage(video,-canvas.width,0,canvas.width,canvas.height);
+  if(video.readyState === 4){
+    ctx.drawImage(video,-canvas.width,0,canvas.width,canvas.height);
+  }
   ctx.restore();
 
   ctx.fillStyle="rgba(0,50,100,0.25)";
@@ -79,7 +142,7 @@ function draw(){
 
   const now=Date.now();
 
-  //--- 破洞漸變 ---
+  //--- 破洞 ---
   holes.forEach((hole,index)=>{
     const age=(now-hole.created)/1000;
     let t=Math.min(age/dangerTime,1);
@@ -87,8 +150,8 @@ function draw(){
     const g=Math.floor(150-150*t);
     const b=Math.floor(255-50*t);
     const color=`rgba(${r},${g},${b},0.6)`;
-
     const flicker=t>0.8?(Math.sin(now/100)*0.5+0.5)*0.4+0.6:1;
+    
     ctx.globalAlpha=flicker;
     ctx.beginPath();
     ctx.arc(hole.x,hole.y,holeRadius,0,Math.PI*2);
@@ -99,21 +162,18 @@ function draw(){
     ctx.stroke();
     ctx.globalAlpha=1;
 
-    // 氣泡提示（越紅越多）
     if(t>0.5)addBubble(hole.x,hole.y,Math.ceil(t*2));
-
-    // 若超時沒修好 → 扣分並爆裂
     if(t>=1){
       score=Math.max(0,score-1);
       scoreEl.textContent="分數："+score;
       addBubble(hole.x,hole.y,15,"rgba(255,80,80,0.9)");
       holes.splice(index,1);
-      spawnShark();
-      spawnHole(); // 補一個新圈圈
+      spawnCreature();
+      spawnHole();
     }
   });
 
-  //--- 氣泡動畫 ---
+  //--- 氣泡 ---
   bubbles.forEach((b,i)=>{
     ctx.beginPath();
     ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
@@ -124,85 +184,134 @@ function draw(){
     if(b.life<=0)bubbles.splice(i,1);
   });
 
-  //--- 骨架人 ---
-  if(poseLandmarks.length>0){
-    const mirroredPose=poseLandmarks.map(p=>({x:(1-p.x)*canvas.width,y:p.y*canvas.height}));
-    drawConnectors(ctx,mirroredPose,Pose.POSE_CONNECTIONS,{color:"#00ffcc",lineWidth:3});
-    drawLandmarks(ctx,mirroredPose,{color:"#ffffff",radius:3});
+  //--- 手部骨架 ---
+  if(handsData && handsData.length > 0){
+    handsData.forEach(hand=>{
+      const mirrored=hand.map(p=>({x:(1-p.x)*canvas.width,y:p.y*canvas.height}));
+      drawConnectors(ctx,mirrored,Hands.HAND_CONNECTIONS,{color:"#ffff00",lineWidth:2});
+      drawLandmarks(ctx,mirrored,{color:"#ffcc00",radius:4});
+    });
   }
 
-  //--- 手骨架 ---
-  handsData.forEach(hand=>{
-    const mirrored=hand.map(p=>({x:(1-p.x)*canvas.width,y:p.y*canvas.height}));
-    drawConnectors(ctx,mirrored,Hands.HAND_CONNECTIONS,{color:"#ffff00",lineWidth:2});
-    drawLandmarks(ctx,mirrored,{color:"#ffcc00",radius:4});
-  });
+  //--- 繪製生物 ---
+  creatures.forEach((c, i) => {
+      ctx.save();
 
-  //--- 鯊魚 ---
-  sharks.forEach((shark,i)=>{
-    shark.x+=shark.speed;
-    ctx.beginPath();
-    ctx.moveTo(shark.x,shark.y);
-    ctx.lineTo(shark.x-100,shark.y-35);
-    ctx.lineTo(shark.x-100,shark.y+35);
-    ctx.closePath();
-    ctx.fillStyle="rgba(160,160,255,0.9)";
-    ctx.fill();
-    if(shark.x>canvas.width+150)sharks.splice(i,1);
-  });
+      // 1. 螃蟹邏輯
+      if (c.type === 'crab') {
+          c.x += c.speed * c.dir;
+          if(c.x > canvas.width - 50 || c.x < 50) {
+              c.dir *= -1; 
+          }
+          ctx.translate(c.x, c.y);
+          let walkWobble = Math.sin(now / 100) * 0.1;
+          ctx.rotate(walkWobble);
 
-  //--- 修補判定 ---
-  holes.forEach((hole,index)=>{
-    handsData.forEach(hand=>{
-      let avgX=0,avgY=0;
-      hand.forEach(p=>{avgX+=(1-p.x)*canvas.width;avgY+=p.y*canvas.height;});
-      avgX/=hand.length;avgY/=hand.length;
-      const dx=avgX-hole.x,dy=avgY-hole.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<holeRadius){
-        score++;
-        scoreEl.textContent="分數："+score;
-        addBubble(hole.x,hole.y,10);
-        holes.splice(index,1);
-        spawnHole(); // 補一個新的
+      // 2. 海星邏輯
+      } else if (c.type === 'starfish') {
+          c.x += c.speed;
+          c.angle += c.rotSpeed; 
+          ctx.translate(c.x, c.y);
+          ctx.rotate(c.angle); 
+
+      // 3. 魚類 (含水母)
+      } else {
+          c.x += c.speed; 
+          let swimY = Math.sin(now / 200 + c.wiggleOffset) * 2; 
+          ctx.translate(c.x, c.y + swimY);
+          let swimRot = Math.sin(now / 200) * 0.1;
+          ctx.rotate(swimRot);
       }
-    });
+
+      // 繪製圖片
+      if(c.img.complete) {
+        const ratio = c.img.height / c.img.width;
+        const w = c.targetWidth;
+        const h = w * ratio;
+        ctx.drawImage(c.img, -w/2, -h/2, w, h);
+      }
+      
+      ctx.restore();
+
+      // 移除超出畫面的生物
+      if (c.type !== 'crab' && (c.x < -150 || c.x > canvas.width + 150)) {
+          creatures.splice(i, 1);
+      }
+  });
+
+  //--- 判定 ---
+  holes.forEach((hole,index)=>{
+    if(handsData){
+        handsData.forEach(hand=>{
+        let avgX=0,avgY=0;
+        hand.forEach(p=>{avgX+=(1-p.x)*canvas.width;avgY+=p.y*canvas.height;});
+        avgX/=hand.length;avgY/=hand.length;
+        const dx=avgX-hole.x,dy=avgY-hole.y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<holeRadius){
+            score++;
+            scoreEl.textContent="分數："+score;
+            addBubble(hole.x,hole.y,10);
+            holes.splice(index,1);
+            spawnHole();
+        }
+        });
+    }
   });
 
   requestAnimationFrame(draw);
 }
 
-//--- Mediapipe Hands ---
+//--- Mediapipe Setup ---
 const hands=new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
-hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-hands.onResults(r=>{handsData=r.multiHandLandmarks||[]});
 
-//--- Mediapipe Pose ---
-const pose=new Pose({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
-pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-pose.onResults(r=>{poseLandmarks=r.poseLandmarks||[]});
+hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 0, 
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+});
+
+hands.onResults(r=>{
+    handsData=r.multiHandLandmarks||[];
+});
 
 async function startCamera(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:true});
-  video.srcObject=stream;await video.play();
+  try {
+    const stream=await navigator.mediaDevices.getUserMedia({video:true});
+    video.srcObject=stream;
+    await video.play();
+  } catch(e) {
+    alert("無法啟動攝影機，請檢查權限！");
+    return;
+  }
+
   const camera=new Camera(video,{
-    onFrame:async()=>{await hands.send({image:video});await pose.send({image:video});},
+    onFrame:async()=>{
+        if(isProcessing) return; 
+        isProcessing = true;
+        try {
+            await hands.send({image:video});
+        } catch (error) {
+            console.log("忽略錯誤:", error);
+        } finally {
+            isProcessing = false;
+        }
+    },
     width:640,height:480
   });
   camera.start();
 
-  // 初始化 2~3 個圈圈
   for(let i=0;i<3;i++)spawnHole();
-
-  // 每 7 秒生成一個新圈圈（若未達上限）
+  spawnCreature(); 
+  setInterval(spawnCreature, 3500); 
   setInterval(spawnHole,7000);
-  // 每 10 秒生成一條鯊魚
-  setInterval(spawnShark,10000);
 
   startTimer();
   draw();
 }
-startCamera();
+
+window.onload = startCamera;
 </script>
 </body>
 </html>
