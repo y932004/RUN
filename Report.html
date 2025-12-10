@@ -245,11 +245,12 @@ async function ensureUserExists() {
 /* ---------------- 讀自己的分數 ---------------- */
 async function loadMyStats() {
   const snap = await getDoc(doc(db, "users", currentUser.uid));
-  const s = snap.data().stats;
+  const data = snap.data() || {};
+  const s = data.stats || { reflex: 0, river: 0, sea: 0 };
 
-  myReflex.textContent = s.reflex;
-  myRiver.textContent  = s.river;
-  mySea.textContent    = s.sea;
+  myReflex.textContent = typeof s.reflex === 'number' ? s.reflex : 0;
+  myRiver.textContent  = typeof s.river === 'number' ? s.river : 0;
+  mySea.textContent    = typeof s.sea === 'number' ? s.sea : 0;
 }
 
 /* ---------------- 讀好友 + 平均 ---------------- */
@@ -270,10 +271,12 @@ async function loadFriendData() {
     if (!fSnap.exists()) continue;
     const fd = fSnap.data();
 
+    // 朋友的 stats 可能不存在，使用安全預設
+    const fs = fd.stats || { reflex: 0, river: 0, sea: 0 };
     count++;
-    sum.reflex += fd.stats.reflex;
-    sum.river  += fd.stats.river;
-    sum.sea    += fd.stats.sea;
+    sum.reflex += (typeof fs.reflex === 'number') ? fs.reflex : 0;
+    sum.river  += (typeof fs.river === 'number') ? fs.river : 0;
+    sum.sea    += (typeof fs.sea === 'number') ? fs.sea : 0;
 
     const li = document.createElement("li");
     li.textContent = fd.nickname || fd.email;

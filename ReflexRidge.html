@@ -94,6 +94,7 @@
 
 <script type="module">
 import { onAuth, addCoins } from './firebase-utils.js';
+import { showCameraMissing } from './ui.js';
 // ==========================================
 // 1. 遊戲設定
 // ==========================================
@@ -286,10 +287,20 @@ pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfide
 pose.onResults(onPoseResults);
 
 const cameraUtils = new Camera(videoElement, {
-    onFrame: async () => { await pose.send({image: videoElement}); },
+    onFrame: async () => { 
+        // 若 video 尚未就緒則跳過 frame
+        if (!videoElement || videoElement.readyState < 2) return;
+        try { await pose.send({image: videoElement}); } catch(e){ console.warn('pose send failed', e); }
+    },
     width: 320, height: 240
 });
-cameraUtils.start();
+try {
+    // MediaDevices 可能找不到裝置，start 可能拋錯
+    cameraUtils.start();
+} catch (e) {
+    console.warn('camera start failed', e);
+    try { showCameraMissing(); } catch(ex){ console.warn('showCameraMissing failed', ex); }
+}
 
 function onPoseResults(results) {
     // 繪製骨架

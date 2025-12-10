@@ -38,7 +38,16 @@ export async function getCoins(uid) {
   const docRef = doc(db, 'users', uid);
   const snap = await getDoc(docRef);
   if (!snap.exists()) return 0;
-  return snap.data().coins || 0;
+  const data = snap.data();
+  // 如果 coins 欄位不存在，將使用者 coins 初始化為 800（向後相容且避免顯示 0）
+  if (typeof data.coins === 'number') return data.coins;
+  try {
+    await updateDoc(docRef, { coins: 800 });
+    return 800;
+  } catch (e) {
+    console.warn('init coins failed', e);
+    return 0;
+  }
 }
 
 export async function getOwnedItems(uid) {
@@ -160,7 +169,11 @@ export async function spendCoins(uid, amount, description = '') {
     const snap = await getDoc(userRef);
     if (!snap.exists()) {
       console.warn('user doc not found, initializing:', uid);
-      await setDoc(userRef, { coins: 0, ownedItems: [] }, { merge: true });
+      // 新使用者預設金幣為 800
+      await setDoc(userRef, { coins: 800, ownedItems: [] }, { merge: true });
+    } else if (typeof snap.data().coins === 'undefined') {
+      // 若文件存在但缺少 coins 欄位，補上預設值以避免被視為 0
+      try { await updateDoc(userRef, { coins: 800 }); } catch(e){ console.warn('set default coins failed', e); }
     }
   } catch (e) {
     console.error('pre-check failed:', e);
