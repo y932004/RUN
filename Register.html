@@ -99,12 +99,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { 
-    getAuth, 
-    createUserWithEmailAndPassword, 
-    signOut,
-    updateProfile 
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
   import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -138,28 +133,23 @@
       // 建立帳號
       const res = await createUserWithEmailAndPassword(auth, email, pass);
 
-      // 寫入 Auth displayName（之後可以直接 user.displayName 拿到）
-      await updateProfile(res.user, {
-        displayName: nick
-      });
+      // 在 Auth 設定 displayName
+      try { await updateProfile(res.user, { displayName: nick }); } catch (e) { console.warn('updateProfile failed', e); }
 
-      // 寫入 Firestore users/{uid}
+      // 寫入 Firestore users/{uid}（初始化 coins 與 ownedItems）
       await setDoc(doc(db, "users", res.user.uid), {
         email,
         nickname: nick,
-        coins: 0,
+        coins: 800, // 初始金幣（可調整）
+        ownedItems: [],
         createdAt: new Date()
       });
 
-      console.log("✅ 註冊完成，已寫入暱稱：", nick);
-
-      // 顯示成功彈窗
+      // 顯示彈窗並在 3 秒後登出回登入頁
       successModal.style.display = "flex";
-
-      // 3 秒後登出並回登入頁
       setTimeout(async () => {
         await signOut(auth);
-        window.location.href = "Login.html";
+        location.href = "Login.html";
       }, 3000);
 
     } catch (err) {

@@ -92,7 +92,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
-<script>
+<script type="module">
+import { onAuth, addCoins } from './firebase-utils.js';
 // ==========================================
 // 1. 遊戲設定
 // ==========================================
@@ -383,7 +384,23 @@ const timerInterval = setInterval(() => {
 function endGame() {
     GameConfig.isGameRunning = false;
     document.getElementById('popup').style.display = "flex";
-    document.getElementById('finalStats').textContent = "最終分數：" + score;
+        // 計算獎勵規則：每 10 分給 5 金幣，至少 1 金幣
+        const reward = Math.max(1, Math.floor(score / 10) * 5);
+        document.getElementById('finalStats').textContent = `最終分數：${score}，獲得金幣：${reward}`;
+        // 嘗試把金幣發放到使用者帳戶（如果有登入）
+        try {
+            onAuth(async (user) => {
+                if (!user) return; // 未登入則跳過
+                try {
+                    const newBal = await addCoins(user.uid, reward, `ReflexRidge reward: score ${score}`);
+                    console.log('reward applied, new balance:', newBal);
+                } catch (e) {
+                    console.error('addCoins error', e);
+                }
+            });
+        } catch (e) {
+            console.error('auth hook failed', e);
+        }
     clearInterval(timerInterval);
 }
 
