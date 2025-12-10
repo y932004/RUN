@@ -219,23 +219,23 @@
 <!-- 角色外觀區 -->
 <div class="store-section">
   <h2>🍎 角色外觀</h2>
-  <div class="shelf" id="characterShelf">
-    <div class="item locked" data-name="蘋果17" data-price="29900" data-type="character">
-      <span class="emoji">🍎</span>
-      <h3>蘋果17</h3>
-      <p class="price">$29900</p>
-    </div>
-    <div class="item locked" data-name="香蕉" data-price="140" data-type="character">
-      <span class="emoji">🍌</span>
-      <h3>香蕉</h3>
-      <p class="price">$140</p>
-    </div>
-    <div class="item locked" data-name="番茄" data-price="160" data-type="character">
-      <span class="emoji">🍅</span>
-      <h3>番茄</h3>
-      <p class="price">$160</p>
-    </div>
+<div class="shelf" id="characterShelf">
+  <div class="item locked" data-id="apple" data-name="蘋果17" data-price="29900" data-type="character">
+    <span class="emoji">🍎</span>
+    <h3>蘋果17</h3>
+    <p class="price">$29900</p>
   </div>
+  <div class="item locked" data-id="banana" data-name="香蕉" data-price="140" data-type="character">
+    <span class="emoji">🍌</span>
+    <h3>香蕉</h3>
+    <p class="price">$140</p>
+  </div>
+  <div class="item locked" data-id="tomato" data-name="番茄" data-price="160" data-type="character">
+    <span class="emoji">🍅</span>
+    <h3>番茄</h3>
+    <p class="price">$160</p>
+  </div>
+</div>
 </div>
 
 <!-- 詳情視窗 -->
@@ -262,12 +262,13 @@
 </div>
 
 <script>
-let coins = 800; // 這裡可以改為從 localStorage 讀取金幣
+let coins = 800; // 可改為 localStorage.getItem('coins')
 let cart = [];
-// 從 localStorage 讀取已擁有的商品，預設為空陣列
 let ownedItems = JSON.parse(localStorage.getItem('ownedItems')) || [];
-// 讀取目前裝備的場景
+
+// 讀取裝備狀態
 let currentScene = localStorage.getItem('equippedScene') || 'cyberpunk';
+let currentSkin = localStorage.getItem('equippedSkin') || 'default';
 
 const coinsDisplay = document.getElementById('coins');
 const modal = document.getElementById('detailModal');
@@ -276,40 +277,48 @@ const itemTitle = document.getElementById('itemTitle');
 const itemType = document.getElementById('itemType');
 const itemPrice = document.getElementById('itemPrice');
 
-// 增加「裝備」按鈕到 Modal HTML 中 (動態加入或先寫好隱藏)
-// 為了方便，我們直接用 JS 控制顯示購買或裝備按鈕
+// 建立裝備按鈕
 const buyBtn = modal.querySelector('.buy');
 const equipBtn = document.createElement('button');
-equipBtn.className = 'buy'; // 借用 buy 的樣式
-equipBtn.style.background = '#e67e22'; // 改成橘色
-equipBtn.textContent = '使用此場景';
+equipBtn.className = 'buy';
+equipBtn.style.background = '#e67e22'; // 橘色按鈕
+equipBtn.textContent = '使用此物品';
 modal.querySelector('.modal-content').insertBefore(equipBtn, modal.querySelector('.cancel'));
 
 let currentItem = null;
 
-// 初始化：檢查哪些已購買，解鎖它們
 function updateShelf() {
   document.querySelectorAll('.item').forEach(item => {
     const id = item.dataset.id;
-    // 如果在已擁有清單中，移除鎖定
+    const type = item.dataset.type;
+
+    // 1. 解鎖已購買項目
     if (ownedItems.includes(id)) {
       item.classList.remove('locked');
-      // 如果是目前裝備的，可以加個標記 (選用)
-      if (id === currentScene) {
-        item.style.border = "3px solid #00bcd4";
+      
+      // 2. 標記目前裝備中的項目 (場景 或 角色)
+      let isEquipped = false;
+      if (type === 'scene' && id === currentScene) isEquipped = true;
+      if (type === 'character' && id === currentSkin) isEquipped = true;
+
+      if (isEquipped) {
+        item.style.border = "3px solid #00bcd4"; // 亮藍色邊框表示裝備中
+        item.style.boxShadow = "0 0 15px #00bcd4";
       } else {
         item.style.border = "none";
+        item.style.boxShadow = "none";
       }
     }
   });
 }
-updateShelf(); // 頁面載入時執行一次
+updateShelf();
 
+// 點擊商品事件
 document.querySelectorAll('.item').forEach(item => {
   item.addEventListener('click', () => {
     currentItem = {
       element: item,
-      id: item.dataset.id, // 取得英文 ID
+      id: item.dataset.id,
       name: item.dataset.name,
       price: parseInt(item.dataset.price),
       type: item.dataset.type,
@@ -320,16 +329,12 @@ document.querySelectorAll('.item').forEach(item => {
     itemType.textContent = currentItem.type === "scene" ? "類型：場景" : "類型：角色外觀";
     itemPrice.textContent = `價格：$${currentItem.price}`;
     
-    // 判斷要顯示「購買」還是「裝備」
+    // 按鈕顯示邏輯
     if (currentItem.isOwned) {
       buyBtn.style.display = 'none';
       modal.querySelector('.cart').style.display = 'none';
-      // 只有場景類型才顯示裝備按鈕
-      if (currentItem.type === "scene") {
-        equipBtn.style.display = 'inline-block';
-      } else {
-        equipBtn.style.display = 'none';
-      }
+      equipBtn.style.display = 'inline-block'; // 顯示裝備按鈕
+      equipBtn.textContent = currentItem.type === 'scene' ? '設為背景' : '設為角色';
     } else {
       buyBtn.style.display = 'inline-block';
       modal.querySelector('.cart').style.display = 'inline-block';
@@ -348,42 +353,71 @@ buyBtn.onclick = () => {
   if(coins >= currentItem.price) {
     coins -= currentItem.price;
     coinsDisplay.textContent = `💰 $${coins}`;
-    
-    // 加入已擁有清單並存檔
     ownedItems.push(currentItem.id);
     localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
-    
-    alert(`購買成功！現在可以使用 ${currentItem.name} 了`);
-    updateShelf(); // 更新畫面
+    alert(`購買成功！獲得 ${currentItem.name}`);
+    updateShelf();
     modal.style.display = 'none';
   } else {
     alert("金幣不足！");
   }
 };
 
-// 裝備邏輯 (新功能)
+// 裝備邏輯 (包含場景與角色)
 equipBtn.onclick = () => {
   if (currentItem.type === 'scene') {
     currentScene = currentItem.id;
     localStorage.setItem('equippedScene', currentScene);
-    alert(`已將場景更換為：${currentItem.name}`);
-    updateShelf(); // 更新邊框
-    modal.style.display = 'none';
+    alert(`場景已更換為：${currentItem.name}`);
+  } else if (currentItem.type === 'character') {
+    currentSkin = currentItem.id;
+    localStorage.setItem('equippedSkin', currentSkin); // 儲存角色設定
+    alert(`角色已更換為：${currentItem.name}`);
   }
+  updateShelf();
+  modal.style.display = 'none';
 };
 
-// 加入購物車 (保持原樣)
+// 購物車邏輯 (保持原樣)
 modal.querySelector('.cart').onclick = () => {
   cart.push(currentItem);
   alert(`已加入購物車：${currentItem.name}`);
   modal.style.display = 'none';
 };
-
-// 取消 (保持原樣)
 modal.querySelector('.cancel').onclick = () => modal.style.display = 'none';
 
-// ... (購物車查看與結帳邏輯保持原樣，或可自行加入 ownedItems 儲存邏輯)
-</script>
+document.getElementById('cartBtn').onclick = () => {
+  cartModal.style.display = 'flex';
+  const list = document.getElementById('cartList');
+  list.innerHTML = '';
+  if(cart.length === 0){
+    list.innerHTML = '<p id="emptyMsg">目前購物車是空的。</p>';
+  } else {
+    cart.forEach((item,i)=>{
+      list.innerHTML += `<p>${i+1}. ${item.name} - $${item.price}</p>`;
+    });
+  }
+};
 
+document.getElementById('checkoutBtn').onclick = () => {
+  const total = cart.reduce((sum,i)=>sum+i.price,0);
+  if(total===0) return alert("購物車是空的！");
+  if(coins >= total){
+    coins -= total;
+    coinsDisplay.textContent = `💰 $${coins}`;
+    cart.forEach(i => {
+       if(!ownedItems.includes(i.id)) ownedItems.push(i.id);
+    });
+    localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
+    alert(`購買成功！`);
+    updateShelf();
+    cart = [];
+    document.getElementById('cartList').innerHTML = '<p>購物車已清空</p>';
+    cartModal.style.display = 'none';
+  } else {
+    alert("金幣不足！");
+  }
+};
+</script>
 </body>
 </html>
