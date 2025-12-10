@@ -109,18 +109,17 @@
       return;
     }
 
-    console.log("登入 UID =", user.uid);
+    let nickname = "使用者"; // fallback
 
-    let nickname = "使用者";
+    try {
+      const docRef = doc(db, "users", user.uid);
+      const snap = await getDoc(docRef);
 
-    const docRef = doc(db, "users", user.uid);
-    const snap = await getDoc(docRef);
-
-    if (snap.exists()) {
-      console.log("Firestore 讀到資料：", snap.data());
-      nickname = snap.data().nickname || "使用者";
-    } else {
-      console.error("❌ Firestore 找不到 Document：", user.uid);
+      if (snap.exists() && snap.data().nickname) {
+        nickname = snap.data().nickname;
+      }
+    } catch (e) {
+      console.error("Firestore 讀取錯誤：", e);
     }
 
     welcome.textContent = `歡迎回來，${nickname}！`;

@@ -55,6 +55,7 @@
     align-items: center;
     z-index: 999;
   }
+
   .modal-content {
     background: rgba(255,255,255,0.2);
     padding: 25px;
@@ -63,6 +64,13 @@
     text-align: center;
     backdrop-filter: blur(6px);
     color: white;
+    animation: pop 0.4s ease;
+  }
+
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); }
   }
 </style>
 </head>
@@ -76,7 +84,6 @@
   <input id="password" type="password" placeholder="密碼">
   <input id="nickname" type="text" placeholder="暱稱（顯示名稱）">
 
-  <!-- ❌ 移除 onclick，避免 module 無法抓到 -->
   <button id="registerBtn">註冊</button>
 
   <p>已經有帳號？<a href="Login.html">去登入</a></p>
@@ -113,9 +120,9 @@
   async function submitRegister() {
     const email = document.getElementById("email").value;
     const pass = document.getElementById("password").value;
-    const nick = document.getElementById("nickname").value;
+    const nick = document.getElementById("nickname").value.trim();
 
-    if (!email || !pass || !nick.trim()) {
+    if (!email || !pass || !nick) {
       alert("請完整填寫所有欄位！");
       return;
     }
@@ -130,9 +137,12 @@
           createdAt: new Date()
         });
 
+        // 顯示彈窗
         document.getElementById("successModal").style.display = "flex";
 
-        setTimeout(() => {
+        // ⭐ 註冊後強制登出 → 確保下次登入能載入 nickname
+        setTimeout(async () => {
+          await auth.signOut();
           location.href = "Login.html";
         }, 3000);
       })
@@ -141,7 +151,6 @@
       });
   }
 
-  // ⭐ Module 下唯一穩定的觸發方式
   document.getElementById("registerBtn").addEventListener("click", submitRegister);
 </script>
 
