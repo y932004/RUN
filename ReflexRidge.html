@@ -98,6 +98,7 @@
 // ==========================================
 
 // 擴充背景樣式設定
+
 const Backgrounds = {
     'cyberpunk': { color: 0x110022, grid: 0xff00ff }, // 預設
     'dark':      { color: 0x222222, grid: 0x444444 },
@@ -107,20 +108,27 @@ const Backgrounds = {
     'desert':    { color: 0xe6ccb2, grid: 0xd2691e }  // 沙漠黃系
 };
 
+const Skins = {
+    'default': { name: "綠色像素人", colors: { head: 0x00ff00, body: 0x00aa00, limb: 0x00ff00 } },
+    'robot':   { name: "鋼鐵機甲",   colors: { head: 0xcccccc, body: 0xff0000, limb: 0x888888 } },
+    // 新增商店角色配色
+    'apple':   { name: "蘋果17",     colors: { head: 0x32cd32, body: 0xff0000, limb: 0x8b0000 } }, // 紅身綠葉
+    'banana':  { name: "香蕉",       colors: { head: 0xfffacd, body: 0xffd700, limb: 0xcccc00 } }, // 黃色系
+    'tomato':  { name: "番茄",       colors: { head: 0x228b22, body: 0xff6347, limb: 0xcd5c5c } }  // 番茄紅
+};
+
 // 從 localStorage 讀取玩家選擇的場景，如果沒有就用預設值 'cyberpunk'
 const savedScene = localStorage.getItem('equippedScene');
+const savedSkin  = localStorage.getItem('equippedSkin');
 
 const GameConfig = {
     baseSpeed: 0.15,
     isGameRunning: true,
-    currentSkin: 'default',
-    // 這裡改為使用讀取到的場景，並確保該場景存在於 Backgrounds 中
+    // 檢查讀取到的 skin 是否存在於 Skins 列表中，否則用 default
+    currentSkin: (savedSkin && Skins[savedSkin]) ? savedSkin : 'default',
     currentBg: (savedScene && Backgrounds[savedScene]) ? savedScene : 'cyberpunk'
 };
-const Skins = {
-    'default': { name: "綠色像素人", colors: { head: 0x00ff00, body: 0x00aa00, limb: 0x00ff00 } },
-    'robot': { name: "鋼鐵機甲", colors: { head: 0xcccccc, body: 0xff0000, limb: 0x888888 } }
-};
+
 
 
 // ==========================================
