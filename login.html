@@ -1,173 +1,52 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>RUNAway 登入系統</title>
-  <!-- Supabase JavaScript SDK v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 30px;
-      background: #f5f5f5;
-    }
-    .box {
-      background: white;
-      padding: 25px;
-      width: 350px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      margin: auto;
-    }
-    input {
-      width: 100%;
-      padding: 8px;
-      margin: 8px 0;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-    button {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    #msg {
-      white-space: pre-wrap;
-      color: #333;
-      margin-top: 10px;
-    }
-  </style>
 </head>
 <body>
 
-  <div class="box">
-    <h2 style="text-align:center;">RUNAway 登入 / 註冊</h2>
+  <h2>登入 / 註冊</h2>
 
-    <label>Email</label>
-    <input id="email" type="email" placeholder="請輸入 Email">
+  <input id="email" type="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="密碼"><br><br>
 
-    <label>密碼</label>
-    <input id="password" type="password" placeholder="請輸入密碼 (至少 6 碼)">
+  <button onclick="signup()">註冊</button>
+  <button onclick="login()">登入</button>
 
-    <label>暱稱（註冊用）</label>
-    <input id="displayName" type="text" placeholder="Ex: 小小跑者">
-
-    <button onclick="signup()">註冊新帳號</button>
-    <button onclick="login()">登入</button>
-
-    <pre id="msg"></pre>
-  </div>
+  <div id="msg"></div>
 
   <script>
-    /* --------------- ① 替換成你的 Supabase URL & anon key --------------- */
-    const SUPABASE_URL = "👉 在這裡貼上你的 Project URL 👈";
-    const SUPABASE_ANON = "👉 在這裡貼上你的 anon public key 👈";
+    /* ⚠️ 你只要填 publishable key 就能用 */
+    const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR";
 
-    /* ------------------------------------------------------------------- */
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    const msg = (t)=> document.getElementById("msg").textContent = t;
 
-    const msgEl = document.getElementById("msg");
-    function showMsg(t) { msgEl.textContent = t; }
-
-    /* ===================== ② 註冊 ===================== */
     async function signup() {
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-      const displayName = document.getElementById("displayName").value || "未命名玩家";
 
-      if (!email || !password) {
-        showMsg("請輸入 email 與密碼");
-        return;
-      }
+      const { error } = await supabase.auth.signUp({ email, password });
 
-      // Step 1: 使用 Supabase Auth 創建帳號
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
-      });
-
-      if (error) {
-        showMsg("註冊失敗：" + error.message);
-        return;
-      }
-
-      const authUser = data.user;
-
-      // Step 2: 在 public.users 建立對應資料列
-      const { error: insertErr } = await supabase
-        .from("users")
-        .insert({
-          auth_user_id: authUser.id,
-          username: email,
-          display_name: displayName,
-          role: "user"
-        });
-
-      if (insertErr) {
-        showMsg("註冊成功，但無法建立玩家資料：" + insertErr.message);
-        return;
-      }
-
-      showMsg("註冊成功！請查收驗證信。\n\n你現在可以使用 Email/密碼登入。");
+      if (error) msg("註冊失敗：" + error.message);
+      else msg("註冊成功！請去信箱驗證後登入");
     }
 
-    /* ===================== ③ 登入 ===================== */
     async function login() {
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
 
-      if (!email || !password) {
-        showMsg("請輸入 email 與密碼");
-        return;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) msg("登入失敗：" + error.message);
+      else {
+        msg("登入成功！");
+        window.location.href = "Homepage.html";
       }
-
-      // Step 1: 用 email + 密碼登入 Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        showMsg("登入失敗：" + error.message);
-        return;
-      }
-
-      const authUser = data.user;
-
-      // Step 2: 查詢 public.users 內對應資料
-      const { data: userRow, error: userErr } = await supabase
-        .from("users")
-        .select("*")
-        .eq("auth_user_id", authUser.id)
-        .single();
-
-      if (userErr) {
-        showMsg("登入成功，但找不到玩家資料：" + userErr.message);
-        return;
-      }
-
-      showMsg("登入成功！\n歡迎：" + userRow.display_name + 
-              "\n角色：" + userRow.role +
-              "\n\n即將導向...");
-
-      // 根據角色導到不同頁面
-      setTimeout(() => {
-        if (userRow.role === "admin") {
-          window.location.href = "admin.html";
-        } else {
-          window.location.href = "dashboard.html";
-        }
-      }, 1500);
     }
   </script>
 
