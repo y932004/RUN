@@ -167,8 +167,8 @@ import {
   doc, getDoc, setDoc, updateDoc,
   arrayUnion, arrayRemove, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { auth, db, onAuth, findUserByEmail, addSportReport } from './firebase-utils.js';
-import { showModal, showToast, showCameraMissing } from './ui.js';
+import { auth, db, onAuth, findUserByEmail, addSportReport, getUserProfile } from './firebase-utils.js';
+import { showModal, hideModal, showToast, showCameraMissing } from './ui.js';
 
 /* ---------------- UI 元素 ---------------- */
 const myReflex = document.getElementById("myReflex");
@@ -194,8 +194,16 @@ onAuth(async (user) => {
 
   currentUser = user;
   try {
-    myInviteCode.textContent = user.uid;
-    document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
+    try {
+      const profile = await getUserProfile(user.uid);
+      const displayName = (profile && profile.nickname) || user.displayName || user.email;
+      myInviteCode.textContent = user.uid;
+      document.getElementById("titleName").textContent = `🏆 ${displayName} 的運動報表`;
+    } catch(e) {
+      console.warn('getUserProfile failed', e);
+      myInviteCode.textContent = user.uid;
+      document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
+    }
 
     await ensureUserExists();
     await loadMyStats();
@@ -389,7 +397,7 @@ async function loadMyReports(){
       list.appendChild(el);
     });
     if (snaps.empty) list.innerHTML = '<p>尚無運動報告</p>';
-    showModal({ title: '我的運動紀錄', body: list, buttons:[{label:'關閉',cls:'ghost',onClick:()=>{}}] });
+    showModal({ title: '我的運動紀錄', body: list, buttons:[{label:'關閉',cls:'ghost',onClick:hideModal}] });
   } catch (err) {
     console.error('loadMyReports failed', err);
     showToast('載入運動紀錄失敗');
@@ -414,6 +422,73 @@ new Chart(document.getElementById("stackedBar"), {
   },
   options: { scales: { x: { stacked: true }, y: { stacked: true } } }
 });
+
+
+// ---------------- 月曆與月份檢視 ----------------
+const monthPickerEl = document.getElementById('monthPicker');
+const calendarDisplay = document.getElementById('calendarDisplay');
+(function setDefaultMonth(){
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    monthPickerEl.value = `${now.getFullYear()}-${mm}`;
+  } catch(e){ console.warn(e); }
+})();
+
+monthPickerEl.addEventListener('change', () => { renderMonthReports(); });
+
+async function renderMonthReports(){
+  if (!currentUser) return; // 尚未登入
+  const val = monthPickerEl.value; if(!val) return;
+  const [y, m] = val.split('-').map(v=>parseInt(v,10));
+  try {
+    const snaps = await getDocs(collection(db, 'users', currentUser.uid, 'sportReports'));
+    const days = {}; // map day -> reports[]
+    snaps.forEach(s=>{
+      const d = s.data();
+      let dateObj = null;
+      if (d.createdAt && d.createdAt.toDate) dateObj = d.createdAt.toDate();
+      else if (d.createdAt && d.createdAt instanceof Date) dateObj = d.createdAt;
+      else if (d.createdAt && typeof d.createdAt === 'string') dateObj = new Date(d.createdAt);
+      else dateObj = null;
+      if (!dateObj) return;
+      if (dateObj.getFullYear() !== y || (dateObj.getMonth()+1) !== m) return;
+      const day = dateObj.getDate();
+      days[day] = days[day] || [];
+      days[day].push(d);
+    });
+
+    // render
+    const keys = Object.keys(days).map(Number).sort((a,b)=>a-b);
+    calendarDisplay.innerHTML = '';
+    if (keys.length === 0) {
+      calendarDisplay.innerHTML = '<p>本月尚無運動紀錄</p>';
+      return;
+    }
+    keys.forEach(day => {
+      const box = document.createElement('div');
+      box.style.padding = '8px'; box.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+      const header = document.createElement('div'); header.style.fontWeight='bold'; header.textContent = `日期：${y}/${m}/${day}`;
+      box.appendChild(header);
+      days[day].forEach(r => {
+        const p = document.createElement('div'); p.style.fontSize='14px'; p.style.marginTop='4px';
+        const ts = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString() : (r.createdAt instanceof Date ? r.createdAt.toLocaleString() : '');
+        p.textContent = `${r.game} — 分數：${r.score} (${ts})`;
+        box.appendChild(p);
+      });
+      calendarDisplay.appendChild(box);
+    });
+  } catch(err) {
+    console.error('renderMonthReports failed', err);
+    calendarDisplay.innerHTML = '<p>載入失敗，請查看 console</p>';
+  }
+}
+
+// 在初始化後載入本月資料
+(async function(){
+  // 當頁面初始化完成且使用者已載入後，嘗試 render
+  try { await new Promise(resolve => setTimeout(resolve, 300)); renderMonthReports(); } catch(e){/*ignore*/}
+})();
 
 </script>
 
