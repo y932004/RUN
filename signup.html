@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>註冊 RUNAway</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- ✔ Supabase v1（你的舊 API key 只能用 v1！） -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.7"></script>
 
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
+      background: #f0f0f0;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -19,88 +21,90 @@
     .box {
       background: white;
       padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
+      border-radius: 16px;
+      width: 350px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       text-align: center;
-      width: 300px;
     }
 
     input {
       width: 100%;
-      padding: 10px;
-      margin: 10px 0;
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 8px;
       border: 1px solid #ccc;
-      border-radius: 6px;
+      font-size: 16px;
     }
 
     button {
       width: 100%;
-      padding: 12px;
-      background: #2196F3;
-      color: white;
-      border: none;
+      padding: 14px;
       font-size: 16px;
-      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      border-radius: 8px;
+      border: none;
       cursor: pointer;
-      transition: 0.2s;
+      margin-top: 10px;
     }
 
     button:hover {
-      background: #1E88E5;
+      background: #0069d9;
     }
 
     #msg {
-      margin-top: 15px;
-      color: #333;
+      margin-top: 20px;
+      font-size: 16px;
+      color: #d00;
       white-space: pre-wrap;
     }
   </style>
 </head>
 
 <body>
-
   <div class="box">
     <h2>註冊 RUNAway</h2>
 
-    <input id="email" type="email" placeholder="Email">
-    <input id="password" type="password" placeholder="密碼（至少6碼）">
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="密碼（至少 6 碼）" />
 
     <button onclick="signup()">註冊帳號</button>
 
     <div id="msg"></div>
   </div>
 
+  <!-- ✔ Supabase 初始化要放在最後！ -->
   <script>
-    /* ⚠ 替換成你的 sb-publishable key（新版是 sb-publishable-） */
     const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
-    const SUPABASE_KEY = "sb-secret-JPw5TkJclr5dbqT-xJQr7Q-u-3UdqcD";
+    const SUPABASE_KEY = "sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR";
 
-    /* 正確初始化 Supabase v2 */
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // ✔ v1 SDK 正確初始化方式
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const msg = txt => document.getElementById("msg").textContent = txt;
+    function showMsg(text) {
+      document.getElementById("msg").textContent = text;
+    }
 
     async function signup() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
 
       if (!email || !password) {
-        msg("❌ 請輸入 Email 和密碼");
-        return;
+        return showMsg("❌ 請輸入 Email 和密碼");
       }
 
-      const { data, error } = await supabaseClient.auth.signUp({
+      // ✔ v1 的 signUp 用法
+      const { user, error } = await supabaseClient.auth.signUp({
         email,
         password
       });
 
       if (error) {
-        msg("❌ 註冊失敗：\n" + error.message);
+        showMsg("❌ 註冊失敗：\n" + error.message);
       } else {
-        msg("✔ 註冊成功！\n請到信箱點擊驗證連結。");
+        showMsg("✔ 註冊成功！請到信箱查看驗證信");
       }
     }
   </script>
-
 </body>
 </html>
