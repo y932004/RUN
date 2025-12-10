@@ -2,39 +2,25 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>RUNAway 登入系統</title>
+  <title>登入 RUNAway</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-
-  <h2>登入 / 註冊</h2>
+  <h2>登入 RUNAway</h2>
 
   <input id="email" type="email" placeholder="Email"><br><br>
   <input id="password" type="password" placeholder="密碼"><br><br>
-
-  <button onclick="signup()">註冊</button>
+  
   <button onclick="login()">登入</button>
-
   <div id="msg"></div>
 
   <script>
-    /* ⚠️ 你只要填 publishable key 就能用 */
-    const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR";
+    const supabase = supabase.createClient(
+    "https://mdeovnbheovrtyrrpdjp.supabase.co",
+"sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR"
+    );
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const msg = (t)=> document.getElementById("msg").textContent = t;
-
-    async function signup() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-
-      const { error } = await supabase.auth.signUp({ email, password });
-
-      if (error) msg("註冊失敗：" + error.message);
-      else msg("註冊成功！請去信箱驗證後登入");
-    }
+    const msg = t => document.getElementById("msg").innerHTML = t;
 
     async function login() {
       const email = document.getElementById("email").value;
@@ -42,13 +28,13 @@
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) msg("登入失敗：" + error.message);
-      else {
-        msg("登入成功！");
-        window.location.href = "Homepage.html";
+      if (error) {
+        msg("❌ 登入失敗：" + error.message);
+      } else {
+        msg("✔ 登入成功！正在跳轉...");
+        setTimeout(() => window.location.href = "Homepage.html", 800);
       }
     }
   </script>
-
 </body>
 </html>

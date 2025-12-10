@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>註冊 RUNAway</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h2>註冊 RUNAway</h2>
+
+  <input id="email" type="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="密碼（至少6碼）"><br><br>
+
+  <button onclick="signup()">註冊帳號</button>
+  <div id="msg"></div>
+
+  <script>
+    const supabase = supabase.createClient(
+      "https://mdeovnbheovrtyrrpdjp.supabase.co",
+"sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR"
+    );
+
+    const msg = t => document.getElementById("msg").innerHTML = t;
+
+    async function signup() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const { error } = await supabase.auth.signUp({ email, password });
+
+      if (error) msg("❌ 註冊失敗：" + error.message);
+      else msg("✔ 註冊成功！請到信箱點擊確認連結。");
+    }
+  </script>
+</body>
+</html>
