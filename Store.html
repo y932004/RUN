@@ -177,6 +177,7 @@
 </style>
 </head>
 <body>
+<link rel="stylesheet" href="ui.css">
 
 <!-- 🔹返回按鈕 -->
 <div class="nav-buttons">
@@ -267,7 +268,6 @@
 <script type="module">
 import { onAuth, getCoins, spendCoins, getOwnedItems, addOwnedItem, updateUserField, getUserProfile, getTransactions, watchUserDoc } from './firebase-utils.js';
 import { showModal, hideModal, showToast } from './ui.js';
-import './ui.css';
 
 let coins = 0; // 後面會從 Firestore 載入
 let uid = null;
