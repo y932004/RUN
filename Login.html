@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>登入 Login</title>
+
+<style>
+  body {
+    font-family: "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, #0a3d62, #3c6382);
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+  }
+  .card {
+    background: rgba(255,255,255,0.15);
+    padding: 30px;
+    border-radius: 14px;
+    width: 300px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 8px;
+    border: none;
+  }
+  button {
+    margin-top: 15px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #60a3bc;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #82ccdd;
+  }
+  a { color: #ffeaa7; }
+</style>
+
+</head>
+<body>
+
+<div class="card">
+  <h2>登入</h2>
+
+  <input id="email" type="email" placeholder="Email">
+  <input id="password" type="password" placeholder="密碼">
+
+  <button onclick="login()">登入</button>
+
+  <p>沒有帳號？<a href="Register.html">註冊一個</a></p>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { 
+    getAuth, 
+    signInWithEmailAndPassword, 
+    onAuthStateChanged 
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  /* 🔥 你的 FirebaseConfig */
+  const firebaseConfig = {
+    apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
+    authDomain: "runrun-21a19.firebaseapp.com",
+    projectId: "runrun-21a19",
+    storageBucket: "runrun-21a19.firebasestorage.app",
+    messagingSenderId: "57222188374",
+    appId: "1:57222188374:web:ea4bf396424bdbca9d9af7",
+    measurementId: "G-PS1B2X8NS2"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // 🔵 已登入 → 自動導向 Homepage
+  onAuthStateChanged(auth, (user) => {
+    if (user) location.href = "Homepage.html";
+  });
+
+  // 🟦 登入功能
+  window.login = function () {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+
+    signInWithEmailAndPassword(auth, email, pass)
+      .then(() => {
+        alert("登入成功！");
+        location.href = "Homepage.html";
+      })
+      .catch((err) => alert("登入失敗：" + err.message));
+  };
+</script>
+
+</body>
+</html>

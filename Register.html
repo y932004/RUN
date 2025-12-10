@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>註冊 Register</title>
+
+<style>
+  body {
+    font-family: "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+  }
+  .card {
+    background: rgba(255,255,255,0.15);
+    padding: 30px;
+    border-radius: 14px;
+    width: 300px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 8px;
+    border: none;
+  }
+  button {
+    margin-top: 15px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #3c8dbc;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  button:hover { background: #5dade2; }
+  a { color: #ffeaa7; }
+</style>
+
+</head>
+<body>
+
+<div class="card">
+  <h2>建立帳號</h2>
+
+  <input id="email" type="email" placeholder="Email">
+  <input id="password" type="password" placeholder="密碼">
+  <input id="nickname" type="text" placeholder="暱稱（顯示名稱）">
+
+  <button onclick="register()">註冊</button>
+
+  <p>已經有帳號？<a href="Login.html">去登入</a></p>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { 
+    getAuth, 
+    createUserWithEmailAndPassword 
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  import { 
+    getFirestore,
+    doc,
+    setDoc
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  /* 🔥 你的 FirebaseConfig */
+  const firebaseConfig = {
+    apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
+    authDomain: "runrun-21a19.firebaseapp.com",
+    projectId: "runrun-21a19",
+    storageBucket: "runrun-21a19.firebasestorage.app",
+    messagingSenderId: "57222188374",
+    appId: "1:57222188374:web:ea4bf396424bdbca9d9af7",
+    measurementId: "G-PS1B2X8NS2"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // 🟨 註冊
+  window.register = function () {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+    const nick = document.getElementById("nickname").value;
+
+    if (!nick.trim()) {
+      alert("請輸入暱稱！");
+      return;
+    }
+
+    createUserWithEmailAndPassword(auth, email, pass)
+      .then(async (res) => {
+        // 🟩 建立 Firestore 的使用者資料
+        await setDoc(doc(db, "users", res.user.uid), {
+          email,
+          nickname: nick,
+          coins: 0,
+          createdAt: new Date()
+        });
+
+        alert("註冊成功！");
+        location.href = "Homepage.html";
+      })
+      .catch((err) => alert("註冊失敗：" + err.message));
+  };
+</script>
+
+</body>
+</html>
