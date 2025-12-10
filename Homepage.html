@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -17,20 +17,17 @@
       justify-content: center;
       height: 100vh;
     }
-
     h1 {
       margin-bottom: 40px;
       font-size: 36px;
       letter-spacing: 2px;
     }
-
     .btn-container {
       display: flex;
       flex-wrap: wrap;
       gap: 20px;
       justify-content: center;
     }
-
     .page-btn {
       background: #60a3bc;
       color: white;
@@ -41,21 +38,17 @@
       transition: all 0.3s ease;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-
     .page-btn:hover {
       background: #82ccdd;
       transform: translateY(-5px);
       box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
-
     footer {
       position: absolute;
       bottom: 20px;
       font-size: 14px;
       color: #dfe6e9;
     }
-
-    /* 🔹右上角登出按鈕 */
     #logoutBtn {
       position: absolute;
       top: 20px;
@@ -68,7 +61,6 @@
       border: 1px solid rgba(255,255,255,0.4);
       transition: 0.3s;
     }
-
     #logoutBtn:hover {
       background: rgba(255,255,255,0.35);
     }
@@ -76,40 +68,24 @@
 </head>
 
 <body>
-  <!-- 🔹顯示動態暱稱 -->
-  <h1 id="welcome">歡迎回來！</h1>
 
-  <!-- 🔹登出按鈕 -->
-  <div id="logoutBtn">登出</div>
+<h1 id="welcome">正在讀取使用者資料...</h1>
+<div id="logoutBtn">登出</div>
 
-  <div class="btn-container">
-    <a class="page-btn" href="Game.html">🎮 Game</a>
-    <a class="page-btn" href="Postcard.html">💌 Postcard</a>
-    <a class="page-btn" href="Report.html">🏃 Sport Report</a>
-    <a class="page-btn" href="Store.html">🛍️ Store</a>
-  </div>
+<div class="btn-container">
+  <a class="page-btn" href="Game.html">🎮 Game</a>
+  <a class="page-btn" href="Postcard.html">💌 Postcard</a>
+  <a class="page-btn" href="Report.html">🏃 Sport Report</a>
+  <a class="page-btn" href="Store.html">🛍️ Store</a>
+</div>
 
-  <footer>© 2025 Your Project Name</footer>
+<footer>© 2025 Your Project Name</footer>
 
-
-<!-- 🔥 Firebase Login Check -->
 <script type="module">
-  import { initializeApp } 
-    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  import { 
-    getAuth, 
-    onAuthStateChanged,
-    signOut 
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-  import {
-    getFirestore,
-    doc,
-    getDoc
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-  /* ✨ 使用你提供的 FirebaseConfig */
   const firebaseConfig = {
     apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
     authDomain: "runrun-21a19.firebaseapp.com",
@@ -124,28 +100,32 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  const welcomeText = document.getElementById("welcome");
+  const welcome = document.getElementById("welcome");
   const logoutBtn = document.getElementById("logoutBtn");
 
-  // 🟦 檢查登入狀態
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       location.href = "Login.html";
       return;
     }
 
-    // 從 Firestore 取得暱稱（如果有）
-    const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
+    console.log("登入 UID =", user.uid);
 
-    if (snap.exists() && snap.data().nickname) {
-      welcomeText.textContent = `歡迎回來！${snap.data().nickname}`;
+    let nickname = "使用者";
+
+    const docRef = doc(db, "users", user.uid);
+    const snap = await getDoc(docRef);
+
+    if (snap.exists()) {
+      console.log("Firestore 讀到資料：", snap.data());
+      nickname = snap.data().nickname || "使用者";
     } else {
-      welcomeText.textContent = `歡迎回來！${user.email}`;
+      console.error("❌ Firestore 找不到 Document：", user.uid);
     }
+
+    welcome.textContent = `歡迎回來，${nickname}！`;
   });
 
-  // 🔴 登出功能
   logoutBtn.onclick = () => {
     signOut(auth).then(() => {
       alert("已登出！");

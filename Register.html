@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
@@ -45,7 +45,6 @@
   button:hover { background: #5dade2; }
   a { color: #ffeaa7; }
 
-  /* 🌟 Modal Style */
   .modal {
     display: none;
     position: fixed;
@@ -62,22 +61,12 @@
     border-radius: 12px;
     width: 260px;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    color: white;
     backdrop-filter: blur(6px);
-  }
-  .modal-content button {
-    margin-top: 15px;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    background: #6ab04c;
     color: white;
-    cursor: pointer;
   }
 </style>
-
 </head>
+
 <body>
 
 <div class="card">
@@ -87,35 +76,26 @@
   <input id="password" type="password" placeholder="密碼">
   <input id="nickname" type="text" placeholder="暱稱（顯示名稱）">
 
-  <button onclick="register()">註冊</button>
+  <!-- ❌ 移除 onclick，避免 module 無法抓到 -->
+  <button id="registerBtn">註冊</button>
 
   <p>已經有帳號？<a href="Login.html">去登入</a></p>
 </div>
 
-<!-- 🌟 註冊成功彈窗 -->
+<!-- 成功彈窗 -->
 <div id="successModal" class="modal">
   <div class="modal-content">
-    <h3 id="modalTitle">註冊成功！</h3>
-    <p id="modalMsg">歡迎加入！即將前往首頁...</p>
-    <button onclick="closeModal()">確定</button>
+    <h3>註冊成功！</h3>
+    <p>歡迎加入！3 秒後回到登入頁面。</p>
+    <button onclick="location.href='Login.html'">確定</button>
   </div>
 </div>
 
-<!-- Firebase -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { 
-    getAuth, 
-    createUserWithEmailAndPassword 
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  import { 
-    getFirestore,
-    doc,
-    setDoc
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-  /* 🔥 FirebaseConfig */
   const firebaseConfig = {
     apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
     authDomain: "runrun-21a19.firebaseapp.com",
@@ -130,27 +110,19 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // 🌟 關閉彈窗
-  window.closeModal = function () {
-    document.getElementById("successModal").style.display = "none";
-    location.href = "Homepage.html";
-  };
-
-  // 🟨 註冊
-  window.register = function () {
+  async function submitRegister() {
     const email = document.getElementById("email").value;
     const pass = document.getElementById("password").value;
     const nick = document.getElementById("nickname").value;
 
-    if (!nick.trim()) {
-      alert("請輸入暱稱！");
+    if (!email || !pass || !nick.trim()) {
+      alert("請完整填寫所有欄位！");
       return;
     }
 
     createUserWithEmailAndPassword(auth, email, pass)
       .then(async (res) => {
 
-        // 🟩 建立 Firestore 的使用者資料
         await setDoc(doc(db, "users", res.user.uid), {
           email,
           nickname: nick,
@@ -158,18 +130,19 @@
           createdAt: new Date()
         });
 
-        // 🎉 顯示成功彈窗
-        document.getElementById("modalTitle").innerText = "註冊成功！";
-        document.getElementById("modalMsg").innerText = `歡迎你，${nick}！`;
         document.getElementById("successModal").style.display = "flex";
 
-        // ⏳ 2 秒後跳轉
         setTimeout(() => {
-          location.href = "Homepage.html";
-        }, 2000);
+          location.href = "Login.html";
+        }, 3000);
       })
-      .catch((err) => alert("註冊失敗：" + err.message));
-  };
+      .catch(err => {
+        alert("註冊失敗：" + err.message)
+      });
+  }
+
+  // ⭐ Module 下唯一穩定的觸發方式
+  document.getElementById("registerBtn").addEventListener("click", submitRegister);
 </script>
 
 </body>
