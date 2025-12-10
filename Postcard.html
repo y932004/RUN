@@ -15,6 +15,7 @@
     justify-content: center;
     height: 100vh;
     overflow: hidden;
+    display: none; /* 預設隱藏 */
   }
 
   .nav-buttons {
@@ -63,7 +64,6 @@
     transform: scale(1.05);
   }
 
-  /* 🚫 禁用按鈕樣式 */
   #drawBtn:disabled {
     background: #bdc3c7;
     color: #7f8c8d;
@@ -80,14 +80,14 @@
     border-radius: 10px;
     margin-top: 40px;
     overflow: hidden;
-    display: none; /* 預設隱藏 */
+    display: none;
     justify-content: flex-start;
     align-items: center;
   }
 
   #postcard {
     position: absolute;
-    left: -620px; /* 初始位置在左側外 */
+    left: -620px;
     width: 600px;
     height: 200px;
     background: #fff;
@@ -96,17 +96,16 @@
     overflow: hidden;
     border: 3px solid #ccc;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    transition: left 3s ease; /* 動畫效果 */
+    transition: left 3s ease;
   }
 
-  /* 當我們直接顯示結果時，移除 transition 以免出現滑動 */
   #postcard.no-anim {
     transition: none;
     left: 0px !important;
   }
 
   .left {
-    width: 65%;
+    width: 60%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -118,20 +117,36 @@
   }
 
   .right {
-    width: 35%;
+    width: 40%;
     background: #fffbe9;
     position: relative;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    padding: 10px;
+    padding: 15px;
   }
 
   .logo {
-    align-self: flex-start;
     font-weight: bold;
     color: #58b4ff;
     font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .nickname {
+    font-size: 22px;
+    font-weight: bold;
+    color: #333;
+    text-align: center;
+    margin: 20px 0 5px 0;
+    word-break: break-word;
+  }
+
+  .checkin-success {
+    font-size: 16px;
+    color: #27ae60;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: auto;
   }
 
   .stamp {
@@ -158,14 +173,15 @@
   .right .date {
     text-align: right;
     color: #555;
-    font-size: 16px;
+    font-size: 14px;
+    margin-top: 10px;
   }
 
   canvas { display: none; }
   
   .fruit-img{
-    width: 140px;
-    height: 140px;
+    width: 130px;
+    height: 130px;
     object-fit: contain;
     display: block;
     z-index: 1;
@@ -181,7 +197,7 @@
 </div>
 
 <h1>🌌 抽出你的水果明信片！</h1>
-<button id="drawBtn">🎰 抽卡！</button>
+<button id="drawBtn" disabled>讀取資料中...</button>
 
 <div id="printer">
   <div id="postcard">
@@ -193,6 +209,8 @@
     <div class="right">
       <div class="logo">RUN!</div>
       <div class="stamp">2025</div>
+      <div id="userNickname" class="nickname"></div>
+      <div class="checkin-success">✅ 打卡成功</div>
       <div class="date" id="dateText"></div>
     </div>
   </div>
@@ -201,127 +219,180 @@
 <button id="downloadBtn" style="display:none;">💾 下載明信片</button>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script>
-const fruits = [
-  { name:"蘋果仔",    img:"imagePostcard/apple.png" },
-  { name:"香蕉君",    img:"imagePostcard/banana.png" },
-  { name:"葡萄團",    img:"imagePostcard/grape.png" },
-  { name:"西瓜寶",    img:"imagePostcard/watermelon.png" },
-  { name:"橘子丸",    img:"imagePostcard/orange.png" }
-];
 
-const auroraColors = [
-  "radial-gradient(circle at top left, #9be7ff, #2c3e50)",
-  "radial-gradient(circle at top, #c2a3ff, #314870)",
-  "radial-gradient(circle at bottom, #a7ffd0, #00696f)",
-  "radial-gradient(circle at top right, #ffd1f3, #3c4573)"
-];
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const printer = document.getElementById("printer");
-const postcard = document.getElementById("postcard");
-const drawBtn = document.getElementById("drawBtn");
-const fruitCharacter = document.getElementById("fruitCharacter");
-const fruitName = document.getElementById("fruitName");
-const dateText = document.getElementById("dateText");
-const downloadBtn = document.getElementById("downloadBtn");
-
-// 🔑 這是存資料的鑰匙
-const STORAGE_KEY = 'daily_postcard_record';
-
-function getToday(){
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-}
-
-// 🛠️ 負責把資料填進明信片的函式 (重複利用)
-function renderCardContent(fIndex, aIndex) {
-  const fruit = fruits[fIndex];
-  const aurora = auroraColors[aIndex];
-
-  document.querySelector(".left").style.background = aurora;
-  fruitCharacter.innerHTML = `<img class="fruit-img" src="${fruit.img}" alt="${fruit.name}">`;
-  fruitName.textContent = fruit.name;
-  dateText.textContent = `📅 ${getToday()}`;
-}
-
-// 🧐 檢查今天是否抽過
-function checkDailyStatus() {
-  const storedData = localStorage.getItem(STORAGE_KEY);
-  
-  if (storedData) {
-    const record = JSON.parse(storedData);
-    const today = getToday();
-
-    // 如果紀錄的日期是今天
-    if (record.date === today) {
-      // 1. 禁用按鈕
-      drawBtn.disabled = true;
-      drawBtn.textContent = "明日再來！(今日已抽)";
-
-      // 2. 顯示 Printer 區域
-      printer.style.display = "flex";
-
-      // 3. 填入上次抽到的內容
-      renderCardContent(record.fruitIndex, record.auroraIndex);
-
-      // 4. 直接把明信片放在正確位置 (不要動畫)
-      postcard.classList.add("no-anim"); 
-      postcard.style.left = "0px";
-
-      // 5. 顯示下載按鈕
-      downloadBtn.style.display = "block";
-    }
-  }
-}
-
-drawBtn.addEventListener("click", () => {
-  // 再次檢查 (防呆)
-  const storedData = localStorage.getItem(STORAGE_KEY);
-  if(storedData && JSON.parse(storedData).date === getToday()) return;
-
-  // 1. 隨機產生
-  const fIndex = Math.floor(Math.random() * fruits.length);
-  const aIndex = Math.floor(Math.random() * auroraColors.length);
-
-  // 2. 存檔！把所有資訊存成 JSON
-  const record = {
-    date: getToday(),
-    fruitIndex: fIndex,
-    auroraIndex: aIndex
+  const firebaseConfig = {
+    apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
+    authDomain: "runrun-21a19.firebaseapp.com",
+    projectId: "runrun-21a19",
+    storageBucket: "runrun-21a19.firebasestorage.app",
+    messagingSenderId: "57222188374",
+    appId: "1:57222188374:web:ea4bf396424bdbca9d9af7",
+    measurementId: "G-PS1B2X8NS2"
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 
-  // 3. 設定畫面
-  printer.style.display = "flex";
-  postcard.classList.remove("no-anim"); // 確保抽卡時有動畫
-  postcard.style.left = "-620px";
-  downloadBtn.style.display = "none";
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-  // 4. 渲染內容
-  renderCardContent(fIndex, aIndex);
+  const fruits = [
+    { name:"蘋果仔",    img:"imagePostcard/apple.png" },
+    { name:"香蕉君",    img:"imagePostcard/banana.png" },
+    { name:"葡萄團",    img:"imagePostcard/grape.png" },
+    { name:"西瓜寶",    img:"imagePostcard/watermelon.png" },
+    { name:"橘子丸",    img:"imagePostcard/orange.png" }
+  ];
+  const auroraColors = [
+    "radial-gradient(circle at top left, #9be7ff, #2c3e50)",
+    "radial-gradient(circle at top, #c2a3ff, #314870)",
+    "radial-gradient(circle at bottom, #a7ffd0, #00696f)",
+    "radial-gradient(circle at top right, #ffd1f3, #3c4573)"
+  ];
 
-  // 5. 執行動畫
-  setTimeout(()=>{ postcard.style.left="0px"; }, 500);
-  
-  // 6. 動畫結束後顯示下載按鈕與禁用抽卡按鈕
-  setTimeout(()=>{ 
-    downloadBtn.style.display="block"; 
-    drawBtn.disabled = true;
-    drawBtn.textContent = "明日再來！(今日已抽)";
-  }, 3500);
-});
+  const printer = document.getElementById("printer");
+  const postcard = document.getElementById("postcard");
+  const drawBtn = document.getElementById("drawBtn");
+  const fruitCharacter = document.getElementById("fruitCharacter");
+  const fruitName = document.getElementById("fruitName");
+  const dateText = document.getElementById("dateText");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const userNicknameDiv = document.getElementById("userNickname");
 
-downloadBtn.addEventListener("click",()=>{
-  html2canvas(postcard).then(canvas=>{
-    const link = document.createElement("a");
-    link.download = `fruit-postcard-${getToday()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+  // 🔴 修改點 1: 宣告變數來存這個人的專屬 Key，不再用固定的
+  let currentUserKey = ""; 
+  let currentUserNickname = "使用者";
+
+  function getToday(){
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  }
+
+  function renderCardContent(fIndex, aIndex, nickname) {
+    const fruit = fruits[fIndex];
+    const aurora = auroraColors[aIndex];
+
+    document.querySelector(".left").style.background = aurora;
+    fruitCharacter.innerHTML = `<img class="fruit-img" src="${fruit.img}" alt="${fruit.name}">`;
+    fruitName.textContent = fruit.name;
+    dateText.textContent = `📅 ${getToday()}`;
+    userNicknameDiv.textContent = nickname;
+  }
+
+  // 🔴 修改點 2: 檢查時改用 currentUserKey
+  function checkDailyStatus() {
+    if (!currentUserKey) return false; // 還沒登入完成前不檢查
+
+    const storedData = localStorage.getItem(currentUserKey);
+    if (storedData) {
+      const record = JSON.parse(storedData);
+      if (record.date === getToday()) {
+        drawBtn.disabled = true;
+        drawBtn.textContent = "明日再來！(今日已抽)";
+        printer.style.display = "flex";
+        renderCardContent(record.fruitIndex, record.auroraIndex, record.nickname);
+        postcard.classList.add("no-anim"); 
+        postcard.style.left = "0px";
+        downloadBtn.style.display = "block";
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function getNickname(user) {
+    let nickname = "";
+    if (user.displayName) {
+      nickname = user.displayName;
+    } else {
+      try {
+        const docRef = doc(db, "users", user.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists() && snap.data().nickname) {
+          nickname = snap.data().nickname;
+        }
+      } catch (e) {
+        console.error("讀取暱稱失敗:", e);
+      }
+    }
+    if (!nickname && user.email) {
+      nickname = user.email.split("@")[0];
+    }
+    return nickname || currentUserNickname;
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = "Login.html";
+      return;
+    }
+
+    document.body.style.display = "flex";
+
+    // 🔴 修改點 3: 登入後，用 UID 組成獨一無二的 Key
+    currentUserKey = `postcard_record_${user.uid}`;
+    console.log("目前使用者的儲存 Key:", currentUserKey);
+
+    currentUserNickname = await getNickname(user);
+    
+    // 取得 Key 後再檢查
+    const isDrawn = checkDailyStatus();
+
+    if (!isDrawn) {
+      drawBtn.disabled = false;
+      drawBtn.textContent = "🎰 抽卡！";
+    }
   });
-});
 
-// 初始化檢查
-checkDailyStatus();
+  drawBtn.addEventListener("click", () => {
+    if (!auth.currentUser || !currentUserKey) return;
+    if (checkDailyStatus()) return;
+
+    const fIndex = Math.floor(Math.random() * fruits.length);
+    const aIndex = Math.floor(Math.random() * auroraColors.length);
+
+    const record = {
+      date: getToday(),
+      fruitIndex: fIndex,
+      auroraIndex: aIndex,
+      nickname: currentUserNickname
+    };
+
+    // 🔴 修改點 4: 存檔時使用專屬 Key
+    localStorage.setItem(currentUserKey, JSON.stringify(record));
+
+    printer.style.display = "flex";
+    postcard.classList.remove("no-anim");
+    postcard.style.left = "-620px";
+    downloadBtn.style.display = "none";
+    drawBtn.disabled = true;
+    drawBtn.textContent = "抽卡中...";
+
+    renderCardContent(fIndex, aIndex, currentUserNickname);
+
+    setTimeout(() => { postcard.style.left = "0px"; }, 100);
+    
+    setTimeout(() => { 
+      downloadBtn.style.display = "block"; 
+      drawBtn.textContent = "明日再來！(今日已抽)";
+    }, 3100);
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    html2canvas(postcard, {
+      scale: 2,
+      useCORS: true
+    }).then(canvas => {
+      const link = document.createElement("a");
+      link.download = `fruit-postcard-${getToday()}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
+  });
+
 </script>
 
 </body>
