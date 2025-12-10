@@ -3,27 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<title>Web Reflex Ridge MVP – 骨架版</title>
+<title>Runner Rigid - 倒數校正 & 距離自適應版</title>
 <style>
-  html,body{margin:0;overflow:hidden;background:#000;}
-  #debugVideo{
-    position:absolute;top:10px;right:10px;width:160px;height:120px;
-    border:2px solid #00ffff;border-radius:8px;transform:scaleX(-1);z-index:5;
+  html,body{margin:0;overflow:hidden;background:#000;font-family:"Microsoft JhengHei", sans-serif;}
+  
+  /* 相機容器 */
+  #camera-container {
+    position:absolute; top:10px; right:10px;
+    width:160px; height:120px;
+    z-index:5;
+    transform: scaleX(-1);
+    border: 2px solid #00ffff;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
   }
+  
+  #debugVideo, #output_canvas {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  #debugVideo { object-fit: cover; opacity: 0.6; }
+  
+  /* HUD 介面 */
   #hud{
-    position:absolute;top:10px;left:10px;color:#fff;font-family:"Microsoft JhengHei";
-    background:rgba(0,0,0,0.5);padding:6px 12px;border-radius:8px;z-index:3;
+    position:absolute;top:10px;left:10px;color:#fff;
+    background:rgba(0,0,0,0.6);padding:10px;border-radius:8px;z-index:3;
+    min-width: 200px;
   }
-  #hud span{display:block;margin:2px 0;}
+  #hud span{display:block;margin:4px 0;font-size: 16px;}
+  #hud .status-icon { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; background:#555;}
+  #hud .status-active { background: #0f0; box-shadow: 0 0 5px #0f0;}
+
+  /* 校正按鈕樣式 */
+  #calibrate-btn {
+    background: #ff9900; color: #000; font-weight: bold;
+    border: none; padding: 8px 10px; border-radius: 4px;
+    cursor: pointer; margin-top: 5px; width: 100%; font-size: 16px;
+    transition: background 0.3s;
+  }
+  #calibrate-btn:disabled { background: #555; color: #aaa; cursor: wait; }
+
   #popup{
-    position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;
+    position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;
     align-items:center;justify-content:center;flex-direction:column;
-    color:#fff;font-family:"Microsoft JhengHei";z-index:10;
+    color:#fff;z-index:10;backdrop-filter: blur(5px);
   }
-  #popup h2{margin-bottom:10px;}
+  #popup h2{font-size: 32px; margin-bottom:10px; color: #00bfff;}
   #popup button{
-    margin-top:20px;padding:8px 16px;font-size:18px;
-    border:none;border-radius:6px;background:#00bfff;color:#fff;cursor:pointer;
+    margin-top:20px;padding:10px 30px;font-size:20px;
+    border:none;border-radius:50px;background:linear-gradient(45deg, #00bfff, #0088ff);
+    color:#fff;cursor:pointer;
   }
 </style>
 </head>
@@ -31,442 +61,395 @@
   
 <div id="hud">
   <span id="score">分數：0</span>
-  <span id="timer">剩餘時間：60 秒</span>
-  <span id="action">動作：--</span>
+  <span id="timer">時間：60</span>
+  
+  <button id="calibrate-btn" onclick="startCalibrationCountdown()">⏱️ 5秒後校正 (請後退)</button>
+  <div style="font-size:12px; color:#aaa; margin-bottom:5px;">
+    基準高: <span id="cali-val">--</span> | 身高比: <span id="body-scale">--</span>
+  </div>
+
+  <div style="margin-top:10px; border-top:1px solid #555; padding-top:5px;">
+    <span><i id="runInd" class="status-icon"></i>跑步 (Run)</span>
+    <span><i id="jumpInd" class="status-icon"></i>跳躍 (Jump)</span>
+    <span><i id="crouchInd" class="status-icon"></i>蹲下 (Crouch)</span>
+  </div>
 </div>
+
 <div id="popup">
-  <h2>遊戲結束！</h2>
-  <p id="finalStats"></p>
-  <button onclick="location.reload()">重新開始</button>
+  <h2>GAME OVER</h2>
+  <p id="finalStats" style="font-size:24px;"></p>
+  <button onclick="location.reload()">再跑一次</button>
 </div>
-<video id="debugVideo" autoplay playsinline muted></video>
+
+<div id="camera-container">
+    <video id="debugVideo" playsinline muted></video>
+    <canvas id="output_canvas"></canvas>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-<script async src="https://docs.opencv.org/4.5.2/opencv.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
 <script>
-// === THREE 基本設定 ===
-const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-camera.position.set(0,2.5,8);
-const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
+// ==========================================
+// 1. 遊戲設定
+// ==========================================
+const GameConfig = {
+    baseSpeed: 0.15,
+    isGameRunning: true,
+    currentSkin: 'default',
+    currentBg: 'cyberpunk'
+};
+
+const Skins = {
+    'default': { name: "綠色像素人", colors: { head: 0x00ff00, body: 0x00aa00, limb: 0x00ff00 } },
+    'robot': { name: "鋼鐵機甲", colors: { head: 0xcccccc, body: 0xff0000, limb: 0x888888 } }
+};
+
+const Backgrounds = {
+    'dark': { color: 0x222222, grid: 0x444444 },
+    'cyberpunk': { color: 0x110022, grid: 0xff00ff }
+};
+
+// ==========================================
+// 2. Three.js 場景
+// ==========================================
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(Backgrounds[GameConfig.currentBg].color, 0.03); 
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 3, 6);
+camera.lookAt(0, 1, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(Backgrounds[GameConfig.currentBg].color);
 document.body.appendChild(renderer.domElement);
-window.addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
-const light=new THREE.DirectionalLight(0xffffff,0.8);
-light.position.set(10,10,5);scene.add(light);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
 
-// === 地板 ===
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(20,200,10,50),new THREE.MeshPhongMaterial({color:0x222222,side:THREE.DoubleSide}));
-floor.rotation.x=-Math.PI/2;
-scene.add(floor);
+const gridHelper = new THREE.GridHelper(100, 100, Backgrounds[GameConfig.currentBg].grid, 0x222222);
+scene.add(gridHelper);
 
-// === 像素人物 ===
-const skeletonGroup=new THREE.Group();
-const pixelMaterial=new THREE.MeshBasicMaterial({color:0x00ff00});
-const bodyParts={};
+// ==========================================
+// 3. 角色與障礙物
+// ==========================================
+const characterGroup = new THREE.Group();
+scene.add(characterGroup);
+let bodyMeshes = {};
 
-// 建立像素人物身體部分 - 固定結構化身體
-function createPixelCharacter(){
-  // 頭部 - 最上面
-  const headGeo=new THREE.BoxGeometry(0.5,0.5,0.3);
-  const head=new THREE.Mesh(headGeo,pixelMaterial);
-  head.position.y=1.9;
-  skeletonGroup.add(head);
-  bodyParts.head=head;
-  
-  // 軀幹 - 中間
-  const torsoGeo=new THREE.BoxGeometry(0.6,0.8,0.3);
-  const torso=new THREE.Mesh(torsoGeo,pixelMaterial);
-  torso.position.y=1.2;
-  skeletonGroup.add(torso);
-  bodyParts.torso=torso;
-  
-  // 左上臂
-  const leftArmGeo=new THREE.BoxGeometry(0.2,0.6,0.2);
-  const leftArm=new THREE.Mesh(leftArmGeo,pixelMaterial);
-  leftArm.position.set(-0.5,1.5,0);
-  skeletonGroup.add(leftArm);
-  bodyParts.leftArm=leftArm;
-  
-  // 右上臂
-  const rightArm=new THREE.Mesh(leftArmGeo.clone(),pixelMaterial);
-  rightArm.position.set(0.5,1.5,0);
-  skeletonGroup.add(rightArm);
-  bodyParts.rightArm=rightArm;
-  
-  // 左下臂
-  const leftForearmGeo=new THREE.BoxGeometry(0.15,0.5,0.15);
-  const leftForearm=new THREE.Mesh(leftForearmGeo,pixelMaterial);
-  leftForearm.position.set(-0.65,0.9,0);
-  skeletonGroup.add(leftForearm);
-  bodyParts.leftForearm=leftForearm;
-  
-  // 右下臂
-  const rightForearm=new THREE.Mesh(leftForearmGeo.clone(),pixelMaterial);
-  rightForearm.position.set(0.65,0.9,0);
-  skeletonGroup.add(rightForearm);
-  bodyParts.rightForearm=rightForearm;
-  
-  // 左腿
-  const leftLegGeo=new THREE.BoxGeometry(0.25,0.8,0.25);
-  const leftLeg=new THREE.Mesh(leftLegGeo,pixelMaterial);
-  leftLeg.position.set(-0.25,0.4,0);
-  skeletonGroup.add(leftLeg);
-  bodyParts.leftLeg=leftLeg;
-  
-  // 右腿
-  const rightLeg=new THREE.Mesh(leftLegGeo.clone(),pixelMaterial);
-  rightLeg.position.set(0.25,0.4,0);
-  skeletonGroup.add(rightLeg);
-  bodyParts.rightLeg=rightLeg;
-  
-  // 左腳
-  const leftFootGeo=new THREE.BoxGeometry(0.2,0.15,0.35);
-  const leftFoot=new THREE.Mesh(leftFootGeo,pixelMaterial);
-  leftFoot.position.set(-0.25,0,0);
-  skeletonGroup.add(leftFoot);
-  bodyParts.leftFoot=leftFoot;
-  
-  // 右腳
-  const rightFoot=new THREE.Mesh(leftFootGeo.clone(),pixelMaterial);
-  rightFoot.position.set(0.25,0,0);
-  skeletonGroup.add(rightFoot);
-  bodyParts.rightFoot=rightFoot;
+function loadCharacterSkin(skinId) {
+    while(characterGroup.children.length > 0) characterGroup.remove(characterGroup.children[0]);
+    bodyMeshes = {};
+    const data = Skins[skinId] || Skins['default'];
+    const matHead = new THREE.MeshPhongMaterial({color: data.colors.head});
+    const matBody = new THREE.MeshPhongMaterial({color: data.colors.body});
+    const matLimb = new THREE.MeshPhongMaterial({color: data.colors.limb});
+
+    const createBox = (w, h, d, mat, x, y, z, name) => {
+        const geo = new THREE.BoxGeometry(w, h, d);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        characterGroup.add(mesh);
+        bodyMeshes[name] = mesh;
+        return mesh;
+    };
+    createBox(0.5, 0.7, 0.3, matBody, 0, 1.15, 0, 'torso');
+    createBox(0.4, 0.4, 0.4, matHead, 0, 1.75, 0, 'head');
+    const createLimb = (x, y, name, isArm) => {
+        const g = new THREE.Group();
+        g.position.set(x, y, 0);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(isArm?0.15:0.2, isArm?0.6:0.8, isArm?0.15:0.2), matLimb);
+        m.position.y = isArm?-0.3:-0.4;
+        g.add(m);
+        characterGroup.add(g);
+        bodyMeshes[name] = g;
+    };
+    createLimb(-0.4, 1.4, 'leftArmGroup', true);
+    createLimb(0.4, 1.4, 'rightArmGroup', true);
+    createLimb(-0.2, 0.8, 'leftLegGroup', false);
+    createLimb(0.2, 0.8, 'rightLegGroup', false);
+}
+loadCharacterSkin(GameConfig.currentSkin);
+
+const obstacles = [];
+const OBS_TYPE_LOW = 1, OBS_TYPE_HIGH = 2;
+function spawnObstacle() {
+    const type = Math.random() > 0.5 ? OBS_TYPE_LOW : OBS_TYPE_HIGH;
+    const geometry = new THREE.BoxGeometry(4, 0.5, 0.5);
+    const material = new THREE.MeshPhongMaterial({color: type===OBS_TYPE_LOW?0xff3333:0xffff33});
+    const obs = new THREE.Mesh(geometry, material);
+    obs.position.set(0, type===OBS_TYPE_LOW?0.25:1.6, -30);
+    obs.userData = { type: type, active: true };
+    scene.add(obs);
+    obstacles.push(obs);
 }
 
-createPixelCharacter();
-scene.add(skeletonGroup);
+// ==========================================
+// 4. 動作偵測核心 (倒數校正 + 距離自適應)
+// ==========================================
+let playerState = { isRunning: false, isJumping: false, isCrouching: false, runEnergy: 0 };
+let calibrationData = { baseHipY: 0.5, bodyScale: 0.3, isCalibrated: false }; // bodyScale = 身體在畫面中的大小
+let currentPose = null;
 
-// === 障礙物 ===
-const obstacles=[];
-function spawnObstacle(z){
-  const geo=new THREE.BoxGeometry(1.5,1.5,1.5);
-  const mat=new THREE.MeshPhongMaterial({color:0xff4444});
-  const obs=new THREE.Mesh(geo,mat);
-  obs.position.set((Math.random()-0.5)*6,0.75,z);
-  obs.userData={dodged:false, hit:false};
-  scene.add(obs);
-  obstacles.push(obs);
-}
-for(let i=0;i<10;i++)spawnObstacle(-i*20-10);
-
-// === UI ===
-const scoreEl=document.getElementById("score");
-const timerEl=document.getElementById("timer");
-const actionEl=document.getElementById("action");
-const popup=document.getElementById("popup");
-const finalStats=document.getElementById("finalStats");
-const video=document.getElementById("debugVideo");
-
-// === 遊戲變數 ===
-let score=0;
-let timeLeft=60;
-let gameOver=false;
-let currentAction="--";
-let lastPoseData=null;
-let obstaclesAvoided=0;
-
-// === Mediapipe Pose ===
-const pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
-pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-pose.onResults(onPose);
-
-async function startCam(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:true});
-  video.srcObject=stream;await video.play();
-  const cam=new Camera(video,{onFrame:async()=>{await pose.send({image:video});},width:320,height:180});
-  cam.start();
-}
-startCam();
-
-// === OpenCV 動作分析 ===
-function detectActionWithOpenCV(lm) {
-  if (!lm || lm.length < 33) return "--";
-  
-  // 關鍵關節點
-  const LHip=lm[23], RHip=lm[24];
-  const LKnee=lm[25], RKnee=lm[26];
-  const LShoulder=lm[11], RShoulder=lm[12];
-  const LElbow=lm[13], RElbow=lm[14];
-  const LWrist=lm[15], RWrist=lm[16];
-  const Nose=lm[0];
-  
-  // 計算身體中心
-  const centerX=(LShoulder.x+RShoulder.x)/2;
-  const centerY=(LHip.y+RHip.y)/2;
-  const shoulderY=(LShoulder.y+RShoulder.y)/2;
-  const hipY=(LHip.y+RHip.y)/2;
-  
-  // 使用 OpenCV 概念計算關節角度
-  function getAngle(p1, p2, p3) {
-    const v1={x:p1.x-p2.x, y:p1.y-p2.y};
-    const v2={x:p3.x-p2.x, y:p3.y-p2.y};
-    const dot=v1.x*v2.x+v1.y*v2.y;
-    const det=v1.x*v2.y-v1.y*v2.x;
-    return Math.atan2(det,dot);
-  }
-  
-  // 計算膝蓋彎曲程度
-  const leftKneeAngle=getAngle(LHip, LKnee, LShoulder);
-  const rightKneeAngle=getAngle(RHip, RKnee, RShoulder);
-  const avgKneeAngle=(Math.abs(leftKneeAngle)+Math.abs(rightKneeAngle))/2;
-  
-  // 計算肘部彎曲
-  const leftElbowAngle=getAngle(LShoulder, LElbow, LWrist);
-  const rightElbowAngle=getAngle(RShoulder, RElbow, RWrist);
-  
-  let action="--";
-  
-  // Jump: 膝蓋高度降低（蹲下），準備跳躍
-  if((LKnee.y+RKnee.y)/2 < hipY - 0.12) {
-    action="Jump";
-  }
-  // Crouch: 身體向下彎曲
-  else if(shoulderY > hipY - 0.08) {
-    action="Crouch";
-  }
-  // Lean Left: 身體重心向左
-  else if(centerX < 0.35) {
-    action="Left";
-  }
-  // Lean Right: 身體重心向右
-  else if(centerX > 0.65) {
-    action="Right";
-  }
-  // Raise Arms: 雙臂舉起
-  else if((LWrist.y+RWrist.y)/2 < shoulderY - 0.1) {
-    action="Raise";
-  }
-  
-  return action;
-}
-
-// === 動作分析回調函數 ===
-function onPose(res){
-  if(!res.poseLandmarks)return;
-  const lm=res.poseLandmarks;
-  
-  // 保存當前姿勢數據用於碰撞檢測
-  lastPoseData={
-    landmarks: lm,
-    timestamp: Date.now()
-  };
-  
-  // === 簡化的座標轉換 ===
-  // MediaPipe 座標: x(0-1), y(0-1), z(深度)
-  // 遊戲座標: x(-3到+3), y(0到2.5)
-  
-  const Nose=lm[0];
-  const LShoulder=lm[11], RShoulder=lm[12];
-  const LElbow=lm[13], RElbow=lm[14];
-  const LWrist=lm[15], RWrist=lm[16];
-  const LHip=lm[23], RHip=lm[24];
-  const LKnee=lm[25], RKnee=lm[26];
-  const LAnkle=lm[27], RAnkle=lm[28];
-  
-  // 身體中心位置（基於肩膀和臀部）
-  const centerX=(LShoulder.x+RShoulder.x+LHip.x+RHip.x)/4;
-  
-  // 移動整個虛擬人物到正確的水平位置
-  skeletonGroup.position.x=(centerX-0.5)*6;
-  skeletonGroup.position.y=0; // 固定在地面上方
-  skeletonGroup.position.z=0;
-  
-  // === 根據真人動作調整虛擬人物的姿勢 ===
-  
-  // 計算膝蓋高度（用於判斷是否跳躍或蹲下）
-  const avgKneeY=(LKnee.y+RKnee.y)/2;
-  const avgHipY=(LHip.y+RHip.y)/2;
-  const avgShoulderY=(LShoulder.y+RShoulder.y)/2;
-  
-  // 計算手臂位置（用於判斷是否舉起）
-  const avgWristY=(LWrist.y+RWrist.y)/2;
-  
-  // 計算身體左右傾斜
-  const leftShoulder_x=(LShoulder.x-0.5)*6;
-  const rightShoulder_x=(RShoulder.x-0.5)*6;
-  
-  // 根據姿勢調整虛擬人物高度（蹲下/站立/跳躍）
-  if(avgKneeY < avgHipY - 0.15) {
-    // Jump - 膝蓋往上抬
-    skeletonGroup.position.y=0.5;
-    bodyParts.leftLeg.scale.y=0.7;
-    bodyParts.rightLeg.scale.y=0.7;
-  } else if(avgShoulderY > avgHipY - 0.08) {
-    // Crouch - 身體向下
-    skeletonGroup.position.y=-0.3;
-    bodyParts.torso.scale.y=0.7;
-    bodyParts.leftLeg.scale.y=0.6;
-    bodyParts.rightLeg.scale.y=0.6;
-  } else {
-    // 正常站立
-    skeletonGroup.position.y=0;
-    bodyParts.torso.scale.y=1;
-    bodyParts.leftLeg.scale.y=1;
-    bodyParts.rightLeg.scale.y=1;
-  }
-  
-  // 手臂動作 - 舉起時
-  if(avgWristY < avgShoulderY - 0.1) {
-    bodyParts.leftArm.position.y=1.8;
-    bodyParts.rightArm.position.y=1.8;
-    bodyParts.leftForearm.position.y=1.2;
-    bodyParts.rightForearm.position.y=1.2;
-  } else {
-    bodyParts.leftArm.position.y=1.5;
-    bodyParts.rightArm.position.y=1.5;
-    bodyParts.leftForearm.position.y=0.9;
-    bodyParts.rightForearm.position.y=0.9;
-  }
-  
-  // === 動作判斷 ===
-  let action=detectActionWithOpenCV(lm);
-  
-  // 根據動作改變顏色
-  if(action==="Jump"){
-    pixelMaterial.color.set(0xff00ff); // 紫色
-  } else if(action==="Crouch"){
-    pixelMaterial.color.set(0xffff00); // 黃色
-  } else if(action==="Left"){
-    pixelMaterial.color.set(0x0088ff); // 藍色
-  } else if(action==="Right"){
-    pixelMaterial.color.set(0xff8800); // 橙色
-  } else if(action==="Raise"){
-    pixelMaterial.color.set(0xff0088); // 粉紅色
-  } else {
-    pixelMaterial.color.set(0x00ff00); // 綠色
-  }
-
-  // 計分邏輯
-  if(action!==currentAction && action!=="--"){
-    score+=1;
-    scoreEl.textContent="分數："+score;
-    currentAction=action;
-  }
-  actionEl.textContent="動作："+action;
-
-}
-
-// === 遊戲邏輯 ===
-function checkCollisionWithAction(obstacle, action, poseData){
-  // 虛擬人物的當前位置（基於 skeletonGroup）
-  const humanX=skeletonGroup.position.x;
-  const humanY=skeletonGroup.position.y;
-  
-  // 障礙物的碰撞箱範圍
-  const obsLeft=obstacle.position.x-0.75;
-  const obsRight=obstacle.position.x+0.75;
-  const obsTop=1.5;
-  
-  if(!poseData || !poseData.landmarks) return true;
-  
-  const lm=poseData.landmarks;
-  const LHip=lm[23], RHip=lm[24];
-  const LKnee=lm[25], RKnee=lm[26];
-  
-  // 簡化的碰撞檢測：根據動作判斷
-  const avgKneeY=(LKnee.y+RKnee.y)/2;
-  const avgHipY=(LHip.y+RHip.y)/2;
-  
-  // 檢查水平位置是否在障礙物範圍內
-  const isInObstacleX=humanX > obsLeft && humanX < obsRight;
-  
-  if(!isInObstacleX) return false; // 已經閃到一邊，躲過了
-  
-  // 在障礙物範圍內，檢查垂直位置
-  if(action==="Jump"){
-    // 跳躍時檢查身體高度
-    if(humanY > 0.3) {
-      return false; // 跳得夠高，躲過
-    }
-  } else if(action==="Crouch"){
-    // 蹲下時檢查身體是否低於障礙物
-    if(humanY < -0.2 && avgKneeY < avgHipY - 0.1) {
-      return false; // 蹲得夠低，躲過
-    }
-  } else if(action==="Left"){
-    // 向左移動
-    if(humanX < obsLeft-0.3) {
-      return false; // 在左邊安全區
-    }
-  } else if(action==="Right"){
-    // 向右移動
-    if(humanX > obsRight+0.3) {
-      return false; // 在右邊安全區
-    }
-  }
-  
-  // 預設碰撞
-  return true;
-}
-
-function updateObstacles(){
-  obstacles.forEach((o, index)=>{
-    o.position.z+=0.1;
+// --- 新增：倒數計時校正 ---
+function startCalibrationCountdown() {
+    const btn = document.getElementById('calibrate-btn');
+    if(btn.disabled) return;
     
-    if(o.position.z>5){
-      // 障礙物離開視野，重置
-      o.position.z=-200;
-      o.position.x=(Math.random()-0.5)*6;
-      o.userData.dodged=false;
-      o.userData.hit=false;
-    }
+    let timeLeft = 5;
+    btn.disabled = true;
     
-    // 當障礙物接近時（z=-0.5左右），進行碰撞檢測
-    if(!o.userData.dodged && !o.userData.hit && Math.abs(o.position.z-0)<1.5){
-      const willCollide=checkCollisionWithAction(o, currentAction, lastPoseData);
-      
-      if(!willCollide){
-        // 成功躲過
-        o.userData.dodged=true;
-        o.material.color.set(0x00ff00); // 變綠色表示躲過
-        score+=5; // 躲過加5分
-        scoreEl.textContent="分數："+score;
-        obstaclesAvoided++;
-      } else if(Math.abs(o.position.z)<0.3){
-        // 碰撞
-        o.userData.hit=true;
-        o.material.color.set(0xff0000); // 變紅色表示碰撞
-        score=Math.max(0,score-3); // 碰撞扣3分
-        scoreEl.textContent="分數："+score;
-      }
-    }
-    
-    // 恢復原色
-    if(o.userData.dodged && o.position.z>2){
-      o.material.color.set(0xff4444);
-      o.userData.dodged=false;
-    }
-  });
+    // 立即更新 UI
+    btn.style.background = "#ff4444"; // 紅色提醒
+    btn.textContent = `⏳ 請後退到定位... ${timeLeft}`;
+
+    const interval = setInterval(() => {
+        timeLeft--;
+        if (timeLeft > 0) {
+            btn.textContent = `⏳ 請後退到定位... ${timeLeft}`;
+        } else {
+            clearInterval(interval);
+            performCalibration();
+        }
+    }, 1000);
 }
 
+function performCalibration() {
+    const btn = document.getElementById('calibrate-btn');
+    if(!currentPose) {
+        alert("未偵測到全身，請調整位置！");
+        btn.disabled = false;
+        btn.style.background = "#ff9900";
+        btn.textContent = "⏱️ 5秒後校正 (重試)";
+        return;
+    }
 
-// === 倒數 ===
-const timer=setInterval(()=>{
-  timeLeft--;
-  timerEl.textContent=`剩餘時間：${timeLeft} 秒`;
-  if(timeLeft<=0){
-    clearInterval(timer);
-    gameOver=true;
-    popup.style.display="flex";
-    finalStats.innerHTML=`最終分數：${score}`;
-  }
-},1000);
+    const lm = currentPose;
+    const hipY = (lm[23].y + lm[24].y) / 2;
+    const shoulderY = (lm[11].y + lm[12].y) / 2;
 
-// === 動畫迴圈 ===
-function animate(){
-  requestAnimationFrame(animate);
-  if(!gameOver){
-    updateObstacles();
-    renderer.render(scene,camera);
-  }
+    // 計算身體在畫面中的「高度比例」 (肩膀到臀部的距離)
+    // 站得遠，這個值會很小(例如0.1)；站得近，這個值會很大(例如0.4)
+    let scale = Math.abs(hipY - shoulderY);
+    if(scale < 0.05) scale = 0.05; // 避免極端值
+
+    calibrationData.baseHipY = hipY;
+    calibrationData.bodyScale = scale;
+    calibrationData.isCalibrated = true;
+    
+    // 更新 UI
+    document.getElementById('cali-val').textContent = hipY.toFixed(2);
+    document.getElementById('body-scale').textContent = scale.toFixed(3);
+    
+    btn.style.background = "#00cc00"; // 綠色成功
+    btn.textContent = "✅ 校正成功！";
+    
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.style.background = "#ff9900";
+        btn.textContent = "⏱️ 重新校正 (5秒)";
+    }, 2000);
+}
+
+const videoElement = document.getElementById('debugVideo');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d');
+
+const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+pose.onResults(onPoseResults);
+
+const cameraUtils = new Camera(videoElement, {
+    onFrame: async () => { await pose.send({image: videoElement}); },
+    width: 320, height: 240
+});
+cameraUtils.start();
+
+function onPoseResults(results) {
+    // 繪製骨架
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    if(results.poseLandmarks){
+        const connections = window.Pose ? Pose.POSE_CONNECTIONS : (window.POSE_CONNECTIONS || []);
+        drawConnectors(canvasCtx, results.poseLandmarks, connections, {color: '#00FF00', lineWidth: 4});
+        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 2, radius: 4});
+    }
+    canvasCtx.restore();
+
+    if (!results.poseLandmarks) return;
+    const lm = results.poseLandmarks;
+    currentPose = lm;
+
+    const leftHip = lm[23], rightHip = lm[24];
+    const leftKnee = lm[25], rightKnee = lm[26];
+    const leftShoulder = lm[11], rightShoulder = lm[12];
+
+    // 1. 計算目前的數據
+    const currentHipY = (leftHip.y + rightHip.y) / 2;
+    const currentScale = calibrationData.isCalibrated ? calibrationData.bodyScale : Math.abs(currentHipY - (leftShoulder.y + rightShoulder.y)/2);
+
+    // 2. 自動更新基準 (如果沒校正)
+    if (!calibrationData.isCalibrated) {
+        calibrationData.baseHipY = calibrationData.baseHipY * 0.95 + currentHipY * 0.05;
+    }
+
+    // 3. 動作判定 (全部依賴 bodyScale 進行正規化)
+    // 這樣不管你站多遠，判定標準都是 "身高的 X 倍"
+    const diff = currentHipY - calibrationData.baseHipY; // 正數=蹲, 負數=跳
+    
+    // 跳躍閾值：身高的 25%
+    const JUMP_THRESH = - (currentScale * 0.25); 
+    // 蹲下閾值：身高的 30%
+    const CROUCH_THRESH = (currentScale * 0.30);
+
+    if (diff < JUMP_THRESH) {
+        playerState.isJumping = true;
+        playerState.isCrouching = false;
+    } else if (diff > CROUCH_THRESH) {
+        playerState.isCrouching = true;
+        playerState.isJumping = false;
+    } else {
+        playerState.isJumping = false;
+        playerState.isCrouching = false;
+    }
+
+    // 4. 跑步判定 (改良版)
+    // 使用膝蓋的高低差 (Knee Delta) 來判斷，比腳踝更穩定
+    const kneeDiff = Math.abs(leftKnee.y - rightKnee.y);
+    
+    // 跑步閾值：只要膝蓋交替高度超過身高的 10% 就算跑
+    const RUN_THRESH = currentScale * 0.10;
+
+    // 必須不在跳躍/蹲下狀態，且有足夠的膝蓋擺動
+    if (kneeDiff > RUN_THRESH && !playerState.isJumping && !playerState.isCrouching) {
+        // 增加能量比較快，停止比較慢
+        playerState.runEnergy = Math.min(playerState.runEnergy + 5, 25);
+    } else {
+        playerState.runEnergy = Math.max(playerState.runEnergy - 1, 0);
+    }
+    playerState.isRunning = playerState.runEnergy > 8;
+
+    updateHUD();
+}
+
+function updateHUD() {
+    document.getElementById('runInd').className = 'status-icon ' + (playerState.isRunning ? 'status-active' : '');
+    document.getElementById('jumpInd').className = 'status-icon ' + (playerState.isJumping ? 'status-active' : '');
+    document.getElementById('crouchInd').className = 'status-icon ' + (playerState.isCrouching ? 'status-active' : '');
+}
+
+// ==========================================
+// 5. 遊戲迴圈
+// ==========================================
+let score = 0;
+let time = 60;
+let clock = new THREE.Clock();
+let runTime = 0;
+
+const timerInterval = setInterval(() => {
+    if(!GameConfig.isGameRunning) return;
+    time--;
+    document.getElementById('timer').textContent = "時間：" + time;
+    if(time <= 0) endGame();
+}, 1000);
+
+function endGame() {
+    GameConfig.isGameRunning = false;
+    document.getElementById('popup').style.display = "flex";
+    document.getElementById('finalStats').textContent = "最終分數：" + score;
+    clearInterval(timerInterval);
+}
+
+function checkCollisions() {
+    obstacles.forEach(obs => {
+        if (!obs.userData.active) return;
+        const zDist = obs.position.z - characterGroup.position.z;
+        if (zDist > -1 && zDist < 1) {
+            let hit = false;
+            if (obs.userData.type === OBS_TYPE_LOW && !playerState.isJumping) hit = true;
+            if (obs.userData.type === OBS_TYPE_HIGH && !playerState.isCrouching) hit = true;
+
+            if (hit) {
+                score = Math.max(0, score - 5);
+                obs.material.color.set(0x555555);
+                obs.userData.active = false;
+                camera.position.x = (Math.random()-0.5)*0.5;
+                setTimeout(()=>camera.position.x=0, 100);
+            } else {
+                if(!obs.userData.passed) { score += 10; obs.userData.passed = true; }
+            }
+            document.getElementById('score').textContent = "分數：" + score;
+        }
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    if (!GameConfig.isGameRunning) return;
+
+    const delta = clock.getDelta();
+    runTime += delta * 10;
+    
+    let currentMoveSpeed = 0;
+    if (playerState.isRunning || playerState.isJumping) {
+        currentMoveSpeed = GameConfig.baseSpeed + (playerState.isRunning ? 0.2 : 0);
+    }
+
+    gridHelper.position.z = (gridHelper.position.z + currentMoveSpeed) % 10;
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        let obs = obstacles[i];
+        obs.position.z += currentMoveSpeed;
+        if (obs.position.z > 5) { scene.remove(obs); obstacles.splice(i, 1); }
+    }
+
+    if (currentMoveSpeed > 0 && Math.random() < 0.02 && obstacles.length < 3) {
+        if (obstacles.length === 0 || obstacles[obstacles.length-1].position.z > -15) spawnObstacle();
+    }
+
+    characterGroup.position.y = 0;
+    bodyMeshes.torso.rotation.x = 0;
+    
+    if (playerState.isJumping) {
+        characterGroup.position.y = 1.5;
+        bodyMeshes.leftLegGroup.rotation.x = -0.5; bodyMeshes.rightLegGroup.rotation.x = -0.8;
+        bodyMeshes.leftArmGroup.rotation.x = -2.5; bodyMeshes.rightArmGroup.rotation.x = -2.5;
+    } else if (playerState.isCrouching) {
+        characterGroup.position.y = -0.5;
+        bodyMeshes.torso.rotation.x = 0.5;
+        bodyMeshes.leftLegGroup.rotation.x = -1.5; bodyMeshes.rightLegGroup.rotation.x = -1.5;
+        bodyMeshes.leftArmGroup.rotation.x = -0.5; bodyMeshes.rightArmGroup.rotation.x = -0.5;
+    } else if (playerState.isRunning) {
+        const legAmp = 0.8, armAmp = 0.8;
+        bodyMeshes.leftLegGroup.rotation.x = Math.sin(runTime) * legAmp;
+        bodyMeshes.rightLegGroup.rotation.x = Math.sin(runTime + Math.PI) * legAmp;
+        bodyMeshes.leftArmGroup.rotation.x = Math.sin(runTime + Math.PI) * armAmp;
+        bodyMeshes.rightArmGroup.rotation.x = Math.sin(runTime) * armAmp;
+        characterGroup.position.y = Math.abs(Math.sin(runTime * 2)) * 0.1;
+    } else {
+        bodyMeshes.leftLegGroup.rotation.x = 0; bodyMeshes.rightLegGroup.rotation.x = 0;
+        bodyMeshes.leftArmGroup.rotation.x = Math.sin(Date.now()*0.002)*0.05;
+        bodyMeshes.rightArmGroup.rotation.x = Math.sin(Date.now()*0.002 + Math.PI)*0.05;
+    }
+
+    checkCollisions();
+    renderer.render(scene, camera);
 }
 animate();
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
 </script>
 </body>
 </html>

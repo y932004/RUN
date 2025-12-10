@@ -3,42 +3,58 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<title>Web River Rush 3D – 時速與倒數版</title>
+<title>River Rush - 珠光寶氣版 (修正跳躍與划槳)</title>
 <style>
-  html,body{margin:0;overflow:hidden;background:#000;}
+  html,body{margin:0;overflow:hidden;background:#87CEEB;}
   #debugVideo{
     position:absolute;top:10px;right:10px;width:160px;height:120px;
     border:2px solid #00ffff;border-radius:8px;transform:scaleX(-1);z-index:5;
+    opacity: 0.7;
   }
   #hud{
-    position:absolute;top:10px;left:10px;color:#fff;font-family:"Microsoft JhengHei";
-    background:rgba(0,0,0,0.5);padding:6px 12px;border-radius:8px;z-index:3;
+    position:absolute;top:10px;left:10px;color:#fff;font-family:"Microsoft JhengHei", sans-serif;
+    background:rgba(0,0,0,0.3);padding:10px 20px;border-radius:12px;z-index:3;
+    font-size: 18px; line-height: 1.6; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    backdrop-filter: blur(5px);
   }
-  #hud span{display:block;margin:2px 0;}
+  #hud span{display:block; font-weight: bold; text-shadow: 1px 1px 3px rgba(0,0,0,0.8);}
+  
+  .rare-text { 
+      color: #fff !important; 
+      text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 40px #fff !important; 
+      font-size: 26px !important;
+      transition: all 0.1s;
+  }
+  
   #popup{
-    position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;
+    position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;
     align-items:center;justify-content:center;flex-direction:column;
-    color:#fff;font-family:"Microsoft JhengHei";z-index:10;
+    color:#fff;font-family:"Microsoft JhengHei", sans-serif;z-index:10;
   }
-  #popup h2{margin-bottom:10px;}
+  #popup h2{margin-bottom:20px; font-size: 48px; color: #ff4d4d; text-shadow: 2px 2px 4px #000;}
   #popup button{
-    margin-top:20px;padding:8px 16px;font-size:18px;
-    border:none;border-radius:6px;background:#00bfff;color:#fff;cursor:pointer;
+    margin-top:30px;padding:12px 32px;font-size:24px; font-weight: bold;
+    border:none;border-radius:50px;background:linear-gradient(to bottom, #00bfff, #009acd);color:#fff;cursor:pointer;
+    box-shadow: 0 5px 15px rgba(0,191,255,0.4); transition: transform 0.1s;
   }
+  #popup button:active { transform: translateY(3px); }
 </style>
 </head>
 <body>
   
 <div id="hud">
   <span id="score">分數：0</span>
+  <span id="health" style="color:#ff4d4d;">生命：❤❤❤</span>
   <span id="speed">時速：0 km/h</span>
-  <span id="timer">剩餘時間：60 秒</span>
+  <span id="timer">時間：60 秒</span>
 </div>
+
 <div id="popup">
-  <h2>遊戲結束！</h2>
-  <p id="finalStats"></p>
-  <button onclick="location.reload()">重新開始</button>
+  <h2 id="endTitle">遊戲結束！</h2>
+  <p id="finalStats" style="font-size:24px; text-align:center; line-height:1.8;"></p>
+  <button onclick="location.reload()">再來一次</button>
 </div>
+
 <video id="debugVideo" autoplay playsinline muted></video>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
@@ -46,113 +62,247 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
 <script>
-// === 場景與相機 ===
+// === 遊戲參數調整區 ===
+const CONFIG = {
+    baseSpeed: 0.03,
+    paddleAccel: 0.006,
+    maxSpeed: 0.20,
+    waterDrag: 0.008,
+    shakeStrength: 0.8,
+    shakeDecay: 0.04
+};
+
+// === Three.js 場景設定 ===
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-camera.position.set(0,3,8);
+scene.fog = new THREE.Fog(0x87CEEB, 40, 140);
+scene.background = new THREE.Color(0x87CEEB);
+
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,500);
+camera.position.set(0,5,10);
+camera.lookAt(0,0,-5);
+
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
+renderer.useLegacyLights = false; 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+renderer.toneMappingExposure = 1.2; 
+renderer.outputColorSpace = THREE.SRGBColorSpace; 
 document.body.appendChild(renderer.domElement);
-window.addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 
-scene.add(new THREE.AmbientLight(0xffffff,0.7));
-const light=new THREE.DirectionalLight(0xffffff,0.8);
-light.position.set(10,10,5);scene.add(light);
+window.addEventListener("resize",()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+});
 
-// === 河道 ===
-const river=new THREE.Mesh(new THREE.PlaneGeometry(30,1000,50,200),new THREE.MeshPhongMaterial({color:0x2a6fd3,side:THREE.DoubleSide}));
-river.rotation.x=-Math.PI/2;
+// 環境貼圖
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+const canvas = document.createElement('canvas');
+canvas.width = 2; canvas.height = 2;
+const ctx = canvas.getContext('2d');
+const gradient = ctx.createLinearGradient(0, 0, 0, 2);
+gradient.addColorStop(0, '#ffffff'); 
+gradient.addColorStop(1, '#87CEEB'); 
+ctx.fillStyle = gradient;
+ctx.fillRect(0, 0, 2, 2);
+const envTexture = new THREE.CanvasTexture(canvas);
+const envMap = pmremGenerator.fromEquirectangular(envTexture).texture;
+scene.environment = envMap; 
+
+// 燈光
+scene.add(new THREE.AmbientLight(0xffffff, 0.8)); 
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.0); 
+sunLight.position.set(30, 50, 30);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 200;
+sunLight.shadow.camera.left = -50;
+sunLight.shadow.camera.right = 50;
+sunLight.shadow.camera.top = 50;
+sunLight.shadow.camera.bottom = -50;
+scene.add(sunLight);
+
+// 河道
+const riverGeo = new THREE.PlaneGeometry(50, 1000, 30, 200);
+const riverMat = new THREE.MeshPhysicalMaterial({
+    color: 0x1e90ff,
+    metalness: 0.3,
+    roughness: 0.1, 
+    transmission: 0.1,
+    reflectivity: 1.0,
+    envMapIntensity: 1.5 
+});
+const river = new THREE.Mesh(riverGeo, riverMat);
+river.rotation.x = -Math.PI/2;
+river.receiveShadow = true;
 scene.add(river);
 
-// === 船 ===
-const boat=new THREE.Group();
-const hull=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.4,2.2),new THREE.MeshPhongMaterial({color:0xffcc00}));
-boat.add(hull);
-const torso=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.8,0.4),new THREE.MeshStandardMaterial({color:0xffffff}));
-torso.position.y=0.7;
-const head=new THREE.Mesh(new THREE.SphereGeometry(0.25),new THREE.MeshStandardMaterial({color:0xffe0bd}));
-head.position.y=1.3;
-boat.add(torso);boat.add(head);
-boat.position.set(0,0.3,0);
+// === 橡皮艇與角色 (修改：提取船槳變數) ===
+// 定義全域變數以便後續動畫控制
+let paddleMeshL, paddleMeshR; 
+
+const boat = new THREE.Group();
+const raftGeo = new THREE.TorusGeometry(1.3, 0.5, 20, 50);
+const raftMat = new THREE.MeshLambertMaterial({color: 0xff4500});
+const raft = new THREE.Mesh(raftGeo, raftMat);
+raft.rotation.x = -Math.PI/2;
+raft.position.y = 0.4;
+raft.castShadow = true;
+boat.add(raft);
+const floorGeo = new THREE.CircleGeometry(1.3, 32);
+const floorMat = new THREE.MeshLambertMaterial({color: 0x333333});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = 0.3;
+boat.add(floor);
+
+// 角色
+const charGroup = new THREE.Group();
+const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.3, 0.9), new THREE.MeshLambertMaterial({color: 0x0080ff}));
+bodyMesh.position.y = 0.9;
+bodyMesh.castShadow = true;
+charGroup.add(bodyMesh);
+const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshLambertMaterial({color: 0xffdcaa}));
+headMesh.position.y = 1.6;
+headMesh.castShadow = true;
+charGroup.add(headMesh);
+
+const paddleGeo = new THREE.BoxGeometry(0.15, 2.8, 0.4);
+const paddleMat = new THREE.MeshLambertMaterial({color: 0x8B4513});
+
+// 左槳
+paddleMeshL = new THREE.Mesh(paddleGeo, paddleMat);
+paddleMeshL.position.set(-1.4, 1.1, 0.6);
+paddleMeshL.rotation.set(0.5, 0, 0.6);
+charGroup.add(paddleMeshL);
+
+// 右槳
+paddleMeshR = new THREE.Mesh(paddleGeo, paddleMat);
+paddleMeshR.position.set(1.4, 1.1, 0.6);
+paddleMeshR.rotation.set(0.5, 0, -0.6);
+charGroup.add(paddleMeshR);
+
+boat.add(charGroup);
+boat.position.y = -0.2;
 scene.add(boat);
 
-// === 牆與裝飾 ===
-function makeWall(x,color){
-  const wall=new THREE.Mesh(new THREE.PlaneGeometry(60,200,10,10),new THREE.MeshLambertMaterial({color}));
-  wall.rotation.y=x>0?-Math.PI/2:Math.PI/2;
-  wall.position.set(x,3,-100);
-  scene.add(wall);
-  return wall;
+// === 環境：山脈 ===
+function createMountains(side) {
+    const geo = new THREE.PlaneGeometry(150, 1200, 50, 150);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        let z = Math.sin(x * 0.03) * Math.cos(y * 0.01) * 15;
+        z += Math.random() * 4;
+        if(side > 0 && x < -50) z *= 0.1; 
+        if(side < 0 && x > 50) z *= 0.1;
+        pos.setZ(i, Math.abs(z)); 
+    }
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshLambertMaterial({color: 0x5a7d4a, flatShading: true});
+    const mtn = new THREE.Mesh(geo, mat);
+    mtn.rotation.x = -Math.PI / 2;
+    mtn.position.set(side * 80, -4, -500);
+    mtn.receiveShadow = true;
+    scene.add(mtn);
+    return mtn;
 }
-const leftWall=makeWall(-15,0x4b6939);
-const rightWall=makeWall(15,0x3d5530);
-function addDecoration(x,z){
-  const geo=new THREE.ConeGeometry(0.5+Math.random(),1.5,8);
-  const mat=new THREE.MeshLambertMaterial({color:0x225500});
-  const tree=new THREE.Mesh(geo,mat);
-  tree.position.set(x,0.8,z);
-  scene.add(tree);
-}
-for(let i=0;i<80;i++){
-  const side=i%2===0?-13:13;
-  addDecoration(side,-i*15-10);
-}
+const leftMtn = createMountains(-1);
+const rightMtn = createMountains(1);
 
-// === 坡道 ===
+// === 坡道與障礙物 ===
 const slopes=[];
-function addSlope(z,x,angle){
-  const geo=new THREE.PlaneGeometry(6,8,10,10);
-  const mat=new THREE.MeshPhongMaterial({color:0x5ec8ff,side:THREE.DoubleSide});
+function addSlope(z,x){
+  const geo=new THREE.BoxGeometry(6, 0.3, 12); 
+  const mat=new THREE.MeshPhongMaterial({color:0x20b2aa});
   const slope=new THREE.Mesh(geo,mat);
-  slope.rotation.x=-Math.PI/2+THREE.MathUtils.degToRad(angle);
-  slope.position.set(x,0,z);
-  slope.userData={height:angle/60};
+  slope.rotation.x = Math.PI / 14; 
+  slope.position.set(x, -0.8, z);
+  slope.castShadow = true;
+  slope.receiveShadow = true;
   scene.add(slope);
   slopes.push(slope);
 }
-for(let i=0;i<6;i++){
-  const z=-i*120-40;
-  addSlope(z,Math.random()*3-1.5,25+Math.random()*10);
-  if(Math.random()<0.4)addSlope(z,Math.random()>0?5:-5,30);
-}
+for(let i=0;i<7;i++){ addSlope(-i*140 - 80, (Math.random()>0.5)?4:-4); }
 
-// === 障礙 ===
 const obstacles=[];
+const rockGeo = new THREE.DodecahedronGeometry(1);
 function spawnObstacle(z){
-  const geo=new THREE.BoxGeometry(2.5,2,2.5);
-  const mat=new THREE.MeshPhongMaterial({color:0x442200});
-  const obs=new THREE.Mesh(geo,mat);
-  obs.position.set(Math.random()*6-3,1,z);
+  const mat=new THREE.MeshPhongMaterial({color: 0x666666, flatShading: true});
+  const obs=new THREE.Mesh(rockGeo,mat);
+  const lanes = [-5, 0, 5];
+  obs.position.set(lanes[Math.floor(Math.random()*3)], 0.8, z);
+  obs.castShadow = true; obs.receiveShadow = true;
+  const scale = 0.8 + Math.random() * 0.8;
+  obs.scale.set(scale, scale, scale);
+  obs.rotation.set(Math.random(), Math.random(), Math.random());
+  obs.userData.radius = scale * 1.0; 
   scene.add(obs);
   obstacles.push(obs);
 }
-for(let i=0;i<15;i++)spawnObstacle(-i*40-30);
+for(let i=0;i<25;i++) spawnObstacle(-i*35-40);
 
-// === 金幣 ===
-const coinGeo=new THREE.TorusGeometry(0.35,0.1,12,24);
-const coinMat=new THREE.MeshPhongMaterial({color:0xffd700,emissive:0xaa8800});
-const coins=[];
-function spawnCoin(z,y){
-  const coin=new THREE.Mesh(coinGeo,coinMat.clone());
-  coin.position.set(Math.random()*4-2,y,z);
-  scene.add(coin);
-  coins.push(coin);
-}
-for(let i=0;i<60;i++){
-  const z=-i*15-20;
-  const y=(Math.random()<0.3)?1.2:0.4;
-  spawnCoin(z,y);
+// === 珍珠 (Pearls) ===
+const pearls=[];
+const pearlGeo = new THREE.IcosahedronGeometry(0.4, 6); 
+const normalPearlMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff, roughness: 0.15, metalness: 0.0, reflectivity: 1.0, 
+    clearcoat: 1.0, clearcoatRoughness: 0.1, iridescence: 0.5, iridescenceIOR: 1.3, envMapIntensity: 1.2
+});
+const rarePearlMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff, roughness: 0.0, metalness: 0.1, transmission: 0.8, thickness: 1.5,
+    clearcoat: 1.0, emissive: 0xffffff, emissiveIntensity: 1.5, iridescence: 1.0, envMapIntensity: 3.0
+});
+
+function spawnPearl(z, y){
+    const isRare = Math.random() < 0.2;
+    const mat = isRare ? rarePearlMat : normalPearlMat;
+    const pearl = new THREE.Mesh(pearlGeo, mat);
+    
+    pearl.position.set(Math.random()*10-5, y, z);
+    pearl.userData = { type: isRare ? 'rare' : 'normal', score: isRare ? 5 : 1 };
+    
+    if(isRare) {
+        const light = new THREE.PointLight(0xffffff, 3, 12);
+        pearl.add(light);
+        const glowGeo = new THREE.SphereGeometry(0.6, 16, 16);
+        const glowMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.BackSide});
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        pearl.add(glow);
+    }
+    scene.add(pearl);
+    pearls.push(pearl);
 }
 
-// === Mediapipe Pose ===
-let speed=0, tilt=0, jumpV=0, isJump=false;
+for(let i=0;i<100;i++){
+  const z=-i*10-20;
+  const y=(Math.random()<0.3)? 1.8 : 0.8;
+  spawnPearl(z,y);
+}
+
+// === 遊戲變數 ===
+let speed = CONFIG.baseSpeed;
+let tilt=0, jumpV=0, isJump=false;
 let lastNoseY=0, score=0, maxSpeed=0;
-let prevLeftY=0, prevRightY=0;
+let health = 3;
+let isGameOver = false;
+let isSinking = false;
+let prevLeftRelY=0, prevRightRelY=0;
+let shakeIntensity = 0;
+
 const scoreEl=document.getElementById("score");
+const healthEl=document.getElementById("health");
 const speedEl=document.getElementById("speed");
 const timerEl=document.getElementById("timer");
 const popup=document.getElementById("popup");
 const finalStats=document.getElementById("finalStats");
+const endTitle=document.getElementById("endTitle");
 const video=document.getElementById("debugVideo");
 
 const pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
@@ -160,95 +310,217 @@ pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0
 pose.onResults(onPose);
 
 async function startCam(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:true});
-  video.srcObject=stream;await video.play();
-  const cam=new Camera(video,{onFrame:async()=>{await pose.send({image:video});},width:320,height:180});
-  cam.start();
+  try {
+      const stream=await navigator.mediaDevices.getUserMedia({video:true});
+      video.srcObject=stream;await video.play();
+      const cam=new Camera(video,{onFrame:async()=>{await pose.send({image:video});},width:320,height:180});
+      cam.start();
+  } catch(e) { console.error(e); }
 }
 startCam();
 
 function onPose(res){
-  if(!res.poseLandmarks)return;
-  const L=res.poseLandmarks[11],R=res.poseLandmarks[12];
-  const N=res.poseLandmarks[0];
-  const LW=res.poseLandmarks[15],RW=res.poseLandmarks[16];
-  const cx=(L.x+R.x)/2, ny=N.y;
-  tilt=(cx-0.5)*30;
-  boat.rotation.z=THREE.MathUtils.degToRad(tilt);
-  boat.position.x=THREE.MathUtils.clamp(boat.position.x-(cx-0.5)*0.5,-4,4);
-  const leftDy=Math.abs(LW.y-prevLeftY);
-  const rightDy=Math.abs(RW.y-prevRightY);
-  const armMove=(leftDy+rightDy)*0.5;
-  if(armMove>0.02){speed=Math.min(speed+0.015,0.18);}
-  else{speed=Math.max(speed-0.01,0);}
-  prevLeftY=LW.y;prevRightY=RW.y;
-  if(lastNoseY-ny>0.07&&!isJump){isJump=true;jumpV=0.15;}
-  lastNoseY=ny;
+  if(!res.poseLandmarks || isGameOver) return;
+  const landmarks = res.poseLandmarks;
+  const Nose = landmarks[0];
+  const L_Shoulder = landmarks[11]; const R_Shoulder = landmarks[12];
+  const L_Wrist = landmarks[15]; const R_Wrist = landmarks[16];
+  
+  // 傾斜
+  tilt = (Nose.x - 0.5) * 45; 
+  if(!isSinking) {
+      boat.rotation.z = THREE.MathUtils.degToRad(tilt);
+      boat.position.x = THREE.MathUtils.clamp(boat.position.x - (Nose.x - 0.5) * 0.8, -6, 6); 
+  }
+
+  // 加速
+  if(L_Wrist.visibility > 0.5 && R_Wrist.visibility > 0.5 && !isSinking) {
+      const lRelY = L_Wrist.y - L_Shoulder.y;
+      const rRelY = R_Wrist.y - R_Shoulder.y;
+      const armMove = (Math.abs(lRelY - prevLeftRelY) + Math.abs(rRelY - prevRightRelY)) * 0.5;
+      
+      if(armMove > 0.02) {
+          speed = Math.min(speed + CONFIG.paddleAccel, CONFIG.maxSpeed);
+      } else {
+          speed = Math.max(speed - CONFIG.waterDrag, CONFIG.baseSpeed);
+      }
+      prevLeftRelY = lRelY; prevRightRelY = rRelY;
+  } else {
+      if(!isSinking) speed = Math.max(speed - CONFIG.waterDrag, CONFIG.baseSpeed);
+  }
+
+  // 臉部跳躍 (保留)
+  if(lastNoseY - Nose.y > 0.06 && !isJump && !isSinking){ isJump=true; jumpV=0.22; }
+  lastNoseY = Nose.y;
 }
 
-// === 遊戲更新 ===
+// === 修正：新增划槳動畫函式 ===
+function animatePaddles() {
+    if(!paddleMeshL || !paddleMeshR || isSinking) return;
+
+    // 划槳速度隨船速變快 (基礎速度 + 速度加成)
+    // 使用 Date.now() 產生週期性擺動
+    const time = Date.now() * 0.005;
+    const paddleSpeed = speed * 25; // 速度係數
+    
+    // 計算擺動角度 (範圍約在 0.2 ~ 0.8 弧度之間)
+    // 左槳 (用 Sin)
+    paddleMeshL.rotation.x = 0.5 + Math.sin(time * paddleSpeed) * 0.6;
+    // 右槳 (用 Cos，產生交替划水的效果，像獨木舟)
+    paddleMeshR.rotation.x = 0.5 + Math.cos(time * paddleSpeed) * 0.6;
+}
+
+// === 遊戲邏輯 ===
 function updateBoat(){
-  if(isJump){boat.position.y+=jumpV;jumpV-=0.008;if(boat.position.y<=0.3){boat.position.y=0.3;isJump=false;}}
-  boat.position.z-=speed*3;
-  camera.position.z=boat.position.z+8;
-  camera.lookAt(boat.position.x,boat.position.y,boat.position.z-5);
-  leftWall.position.z=boat.position.z-100;rightWall.position.z=boat.position.z-100;
-  const kmh=(speed*200).toFixed(1);
+  if(isGameOver && isSinking) {
+      boat.position.y -= 0.03; boat.rotation.z += 0.05; boat.rotation.x -= 0.02;
+      if(boat.position.y < -3) { isSinking = false; showEndScreen("船隻沉沒！"); }
+      return;
+  }
+  
+  // 跳躍物理計算
+  if(isJump){
+      boat.position.y += jumpV; 
+      jumpV -= 0.012; // 重力
+      // 落地判定
+      if(boat.position.y <= -0.2){ 
+          boat.position.y = -0.2; 
+          isJump = false; 
+      }
+  } else {
+      // 水面浮動
+      boat.position.y = -0.2 + Math.sin(Date.now()*0.004)*0.08;
+  }
+  
+  if(shakeIntensity > 0) {
+      boat.position.x += (Math.random() - 0.5) * shakeIntensity;
+      boat.position.y += (Math.random() - 0.5) * shakeIntensity * 0.5;
+      shakeIntensity -= CONFIG.shakeDecay;
+  }
+  boat.position.z -= speed*4;
+  camera.position.z = boat.position.z + 12;
+  camera.position.x += (boat.position.x * 0.6 - camera.position.x) * 0.1;
+  camera.lookAt(boat.position.x, 0, boat.position.z - 5);
+  leftMtn.position.z = boat.position.z - 400;
+  rightMtn.position.z = boat.position.z - 400;
+  
+  const kmh = Math.floor(speed * 300);
   speedEl.textContent=`時速：${kmh} km/h`;
-  if(speed>maxSpeed)maxSpeed=speed;
+  if(kmh > maxSpeed) maxSpeed = kmh;
 }
-function updateCoins(){
-  coins.forEach(c=>{
-    c.rotation.y+=0.1;
-    const dz=c.position.z-boat.position.z;
-    if(dz>10)c.position.z=boat.position.z-400;
-    const dist=boat.position.distanceTo(c.position);
-    if(dist<1){score++;scoreEl.textContent="分數："+score;c.position.z=boat.position.z-400;}
-  });
-}
+
+// === 修正：跳板邏輯 updateSlopes ===
 function updateSlopes(){
-  slopes.forEach(s=>{
-    const dz=boat.position.z-s.position.z;
-    if(Math.abs(dz)<4&&Math.abs(boat.position.x-s.position.x)<3){
-      const h=s.userData.height;
-      boat.position.y=0.3+Math.max(0,(4-Math.abs(dz)))*h;
+  slopes.forEach(s => {
+    const dz = s.position.z - boat.position.z;
+    const dx = Math.abs(boat.position.x - s.position.x);
+    
+    // 判定是否碰到跳板 (範圍縮小一點以精確觸發)
+    // 當船在跳板上方且尚未跳躍時
+    if(dz > -3 && dz < 2 && dx < 3.0) { 
+       if(!isJump) {
+           // 修正重點：強制給予向上速度，觸發跳躍狀態
+           isJump = true;
+           jumpV = 0.35; // 這個數值決定彈起的高度，可微調
+           
+           // 額外效果：如果想要稍微抬高船頭
+           boat.rotation.x = -0.2;
+       }
+    }
+    
+    // 循環生成
+    if(dz > 20) {
+        s.position.z = boat.position.z - 500 - Math.random()*200;
+        s.position.x = (Math.random() > 0.5) ? 4 : -4;
     }
   });
 }
-function checkObstacles(){
-  obstacles.forEach(o=>{
-    const dz=o.position.z-boat.position.z;
-    if(dz>10){o.position.z=boat.position.z-400;o.position.x=Math.random()*8-4;}
-    const dist=boat.position.distanceTo(o.position);
-    if(dist<1.5){speed*=0.5;boat.position.x+=Math.sign(boat.position.x-o.position.x)*0.3;}
+
+function updatePearls(){
+  pearls.forEach(p => {
+    p.rotation.y += 0.02; 
+    p.position.y += Math.sin(Date.now()*0.003 + p.position.x)*0.005;
+    const dz = p.position.z - boat.position.z;
+    if(dz > 15) {
+        p.position.z = boat.position.z - 400 - Math.random()*200;
+        p.position.x = Math.random()*12-6;
+        p.visible = true;
+    }
+    if(!p.visible) return;
+    if(boat.position.distanceTo(p.position) < 2.0) {
+        score += p.userData.score;
+        scoreEl.innerHTML = `分數：${score}`;
+        p.visible = false; 
+        if(p.userData.type === 'rare') {
+            scoreEl.classList.add('rare-text');
+            setTimeout(()=>scoreEl.classList.remove('rare-text'), 800);
+        }
+    }
   });
 }
 
-// === 倒數與結算 ===
-let timeLeft=60;
-const timer=setInterval(()=>{
-  timeLeft--;
-  timerEl.textContent=`剩餘時間：${timeLeft} 秒`;
-  if(timeLeft<=0){
-    clearInterval(timer);
-    endGame();
-  }
-},1000);
-
-function endGame(){
-  popup.style.display="flex";
-  const kmhMax=(maxSpeed*200).toFixed(1);
-  finalStats.innerHTML=`最終分數：${score}<br>最高時速：${kmhMax} km/h`;
+function checkObstacles(){
+  if(isGameOver || isSinking) return;
+  obstacles.forEach(o => {
+    const dz = o.position.z - boat.position.z;
+    if(dz > 15) {
+        o.position.z = boat.position.z - 400 - Math.random()*100;
+        const lanes = [-5, 0, 5]; o.position.x = lanes[Math.floor(Math.random()*3)];
+        const scale = 0.8 + Math.random() * 0.8; o.scale.set(scale, scale, scale);
+        o.rotation.set(Math.random(), Math.random(), Math.random());
+        o.userData.radius = scale * 1.0; o.visible = true;
+    }
+    if(!o.visible) return;
+    const zDiff = Math.abs(o.position.z - boat.position.z);
+    const xDiff = Math.abs(o.position.x - boat.position.x);
+    
+    // 如果跳起來很高 (y > 2.5)，可以閃過障礙物
+    if(zDiff < 1.5 && xDiff < o.userData.radius + 1.0) {
+        if(boat.position.y < 2.0) { // 只有在低處才會撞到
+            handleCrash(o);
+        }
+    }
+  });
 }
 
-// === 動畫 ===
+function handleCrash(obstacle) {
+    health--; updateHealthUI();
+    speed = CONFIG.baseSpeed; shakeIntensity = CONFIG.shakeStrength;
+    boat.position.x += (boat.position.x > obstacle.position.x) ? 1.5 : -1.5;
+    obstacle.visible = false;
+    if(health <= 0) triggerSink();
+}
+
+function updateHealthUI() {
+    let hearts = ""; for(let i=0; i<health; i++) hearts += "❤";
+    healthEl.textContent = "生命：" + hearts;
+}
+
+function triggerSink() {
+    isGameOver = true; isSinking = true; speed = 0; shakeIntensity = 0.3;
+    clearInterval(timer);
+}
+
+let timeLeft=60;
+const timer=setInterval(()=>{
+  if(isGameOver) return;
+  timeLeft--; timerEl.textContent=`時間：${timeLeft} 秒`;
+  if(timeLeft<=0){ clearInterval(timer); isGameOver = true; showEndScreen("時間到！"); }
+},1000);
+
+function showEndScreen(reason){
+  popup.style.display="flex"; endTitle.textContent = reason;
+  finalStats.innerHTML=`最終分數：${score}<br>最高時速：${maxSpeed} km/h`;
+}
+
 function animate(){
   requestAnimationFrame(animate);
-  if(speed>0) river.position.z-=speed*3;
+  if(!isGameOver || isSinking) river.position.z -= speed*4;
+  
   updateBoat();
-  updateCoins();
-  updateSlopes();
-  checkObstacles();
+  animatePaddles(); // 加入這行：執行船槳動畫
+  
+  if(!isSinking) { updatePearls(); updateSlopes(); checkObstacles(); }
   renderer.render(scene,camera);
 }
 animate();
