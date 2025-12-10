@@ -403,8 +403,9 @@ buyBtn.onclick = async () => {
     updateShelf();
     modal.style.display = 'none';
   } catch (e) {
-    console.error(e);
+    console.error('Purchase error:', e);
     if (String(e).includes('insufficient')) alert('金幣不足！');
+    else if (String(e).includes('user-not-found')) alert('使用者資料未初始化，請重新登入後重試');
     else alert('購買失敗：' + e.message);
   }
 };
@@ -467,8 +468,9 @@ document.getElementById('checkoutBtn').onclick = async () => {
     document.getElementById('cartList').innerHTML = '<p>購物車已清空</p>';
     cartModal.style.display = 'none';
   } catch (e) {
-    console.error(e);
+    console.error('Checkout error:', e);
     if (String(e).includes('insufficient')) alert('金幣不足！');
+    else if (String(e).includes('user-not-found')) alert('使用者資料未初始化，請重新登入後重試');
     else alert('結帳失敗：' + e.message);
   }
 };

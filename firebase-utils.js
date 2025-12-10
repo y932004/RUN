@@ -5,6 +5,7 @@ import {
   getFirestore,
   doc,
   getDoc,
+  setDoc,
   runTransaction,
   collection,
   addDoc,
@@ -115,6 +116,17 @@ export async function addCoins(uid, amount, description = '') {
 export async function spendCoins(uid, amount, description = '') {
   if (!uid) throw new Error('no-uid');
   const userRef = doc(db, 'users', uid);
+
+  // 先檢查文件是否存在，若不存在則初始化（防禦性措施）
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      console.warn('user doc not found, initializing:', uid);
+      await setDoc(userRef, { coins: 0, ownedItems: [] }, { merge: true });
+    }
+  } catch (e) {
+    console.error('pre-check failed:', e);
+  }
 
   const newBalance = await runTransaction(db, async (t) => {
     const snap = await t.get(userRef);
