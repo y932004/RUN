@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>註冊 RUNAway</title>
 
-  <!-- ✔ Supabase v1（你的舊 API key 只能用 v1！） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.7"></script>
 
   <style>
@@ -38,12 +37,12 @@
 
     button {
       width: 100%;
-      padding: 14px;
-      font-size: 16px;
+      padding: 12px;
       background: #007bff;
       color: white;
-      border-radius: 8px;
       border: none;
+      border-radius: 8px;
+      font-size: 18px;
       cursor: pointer;
       margin-top: 10px;
     }
@@ -73,10 +72,10 @@
     <div id="msg"></div>
   </div>
 
-  <!-- ✔ Supabase 初始化要放在最後！ -->
   <script>
+    // 🔔 使用您的新 Publishable Key
     const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR";
+    const SUPABASE_KEY = "sb_publishable_58pawbLhwtD0MytPymd-Ow__QfXt0QX";
 
     // ✔ v1 SDK 正確初始化方式
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -89,20 +88,25 @@
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value.trim();
 
-      if (!email || !password) {
-        return showMsg("❌ 請輸入 Email 和密碼");
+      showMsg("⏳ 註冊中...");
+
+      if (!email || !password || password.length < 6) {
+        showMsg("錯誤：請檢查 Email 與密碼（密碼需至少 6 碼）");
+        return;
       }
 
-      // ✔ v1 的 signUp 用法
-      const { user, error } = await supabaseClient.auth.signUp({
-        email,
-        password
+      // v1 註冊寫法：不再傳遞 redirectTo，用戶將被自動登入
+      const { user, session, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
       });
 
       if (error) {
-        showMsg("❌ 註冊失敗：\n" + error.message);
+        showMsg("註冊錯誤：\n" + error.message);
       } else {
-        showMsg("✔ 註冊成功！請到信箱查看驗證信");
+        showMsg("🎉 註冊成功！正在自動登入並跳轉到儀表板...");
+        // 成功後直接跳轉到 Dashboard
+        window.location.href = "dashboard.html";
       }
     }
   </script>

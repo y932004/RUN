@@ -4,63 +4,10 @@
   <meta charset="UTF-8">
   <title>登入 RUNAway</title>
 
-  <!-- ✔ 使用 Supabase v1（你的舊 API key 只能用這個版本） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.7"></script>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .box {
-      background: white;
-      padding: 40px;
-      border-radius: 16px;
-      width: 350px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-
-    h2 {
-      margin-bottom: 20px;
-    }
-
-    input {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      background: #28a745;
-      color: white;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    button:hover {
-      background: #218838;
-    }
-
-    #msg {
-      margin-top: 15px;
-      font-size: 15px;
-      white-space: pre-wrap;
-    }
+    /* ... 樣式省略 ... */
   </style>
 </head>
 
@@ -78,9 +25,9 @@
   </div>
 
   <script>
-    // ✔ 使用你的舊 key（v1 完全支援）
+    // ✔ 使用你的新 key
     const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_CQrmDtqEshd9do-SrzFYhw_ac420UxR";
+    const SUPABASE_KEY = "sb_publishable_58pawbLhwtD0MytPymd-Ow__QfXt0QX"; // <-- 已替換為新的 Publishable Key
 
     // ✔ v1 初始化方式
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -94,23 +41,25 @@
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value.trim();
 
+      msg("⏳ 登入中...");
+
+      // 檢查輸入
       if (!email || !password) {
-        msg("❌ 請輸入 Email 和密碼");
+        msg("錯誤：Email 或密碼不能為空！");
         return;
       }
 
-      const { user, error } = await supabaseClient.auth.signIn({
-        email,
-        password
+      // v1 登入寫法
+      const { user, session, error } = await supabaseClient.auth.signIn({
+        email: email,
+        password: password,
       });
 
       if (error) {
-        msg("❌ 登入失敗：\n" + error.message);
+        msg("登入錯誤：\n" + error.message);
       } else {
-        msg("✔ 登入成功！正在跳轉...");
-        setTimeout(() => {
-          window.location.href = "Homepage.html";
-        }, 600);
+        msg("🎉 登入成功！");
+        window.location.href = "dashboard.html"; // 登入成功後跳轉
       }
     }
   </script>

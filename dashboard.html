@@ -5,156 +5,117 @@
   <title>玩家儀表板 Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body {
-      font-family: Arial;
-      background: #f2f2f2;
-      padding: 30px;
-    }
-    .box {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      width: 800px;
-      margin: auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    h2, h3 {
-      text-align: center;
-    }
-    .section {
-      margin-top: 25px;
-      padding: 15px;
-      background: #fafafa;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-    }
-    pre {
-      background: #eee;
-      padding: 10px;
-      border-radius: 6px;
-      overflow-x: auto;
-    }
-    button {
-      padding: 10px 20px;
-      border: none;
-      background: #d9534f;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-    button:hover {
-      background: #c9302c;
-    }
+    /* ... 樣式省略 ... */
   </style>
 </head>
 <body>
+  <div class="box">
+    <h2>玩家儀表板 Dashboard</h2>
 
-<div class="box">
-  <h2>🏃‍♂️ RUNAway 玩家儀表板</h2>
+    <h3>個人資料 (profiles)</h3>
+    <pre id="profile">載入中...</pre>
 
-  <div class="section">
-    <h3>基本資訊</h3>
-    <pre id="profile"></pre>
+    <h3>金幣錢包 (coin_wallets)</h3>
+    <p id="coins">載入中...</p>
+
+    <h3>最新遊戲紀錄 (game_sessions)</h3>
+    <pre id="sessions">載入中...</pre>
+
+    <h3>抽卡紀錄 (postcards)</h3>
+    <pre id="postcards">載入中...</pre>
+
+    <h3>已購買物品 (user_items)</h3>
+    <pre id="items">載入中...</pre>
+
+    <button onclick="logout()">登出</button>
   </div>
 
-  <div class="section">
-    <h3>💰 金幣餘額</h3>
-    <pre id="coins"></pre>
-  </div>
+  <script>
+    // 🔔 v2 SDK 初始化方式，使用新的 Publishable Key
+    const SUPABASE_URL = "https://mdeovnbheovrtyrrpdjp.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_58pawbLhwtD0MytPymd-Ow__QfXt0QX"; // <-- 已替換為新的 Publishable Key
 
-  <div class="section">
-    <h3>🎮 最近 10 場遊戲紀錄</h3>
-    <pre id="sessions"></pre>
-  </div>
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  <div class="section">
-    <h3>🍏 抽到的水果卡片</h3>
-    <pre id="postcards"></pre>
-  </div>
-
-  <div class="section">
-    <h3>🛒 已購買的商店物品</h3>
-    <pre id="items"></pre>
-  </div>
-
-  <button onclick="logout()">登出</button>
-</div>
-
-<script>
-  const SUPABASE_URL = "👉在這裡貼你的 Supabase URL👈";
-  const SUPABASE_ANON = "👉在這裡貼你的 anon key👈";
-
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
-  main();
-
-  async function main() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      alert("尚未登入");
-      window.location.href = "login.html";
-      return;
+    // ... 其餘 JavaScript 函式（checkLogin, fetchAllData, logout）省略 ...
+    
+    // 登出函式
+    async function logout() {
+      const { error } = await supabase.auth.signOut();
+      window.location.href = "login.html"; // 登出後跳回登入頁
     }
 
-    // 1. 抓取 user profile（public.users）
-    const profile = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_user_id", user.id)
-      .single();
+    // 檢查登入狀態
+    async function checkLogin() {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    document.getElementById("profile").textContent =
-      JSON.stringify(profile.data, null, 2);
+      if (!user) {
+        // 沒有登入，導向登入頁
+        window.location.href = "login.html";
+      } else {
+        // 已登入，開始載入資料
+        fetchAllData(user);
+      }
+    }
+    
+    // 載入所有資料
+    async function fetchAllData(user) {
+      // 1. 個人資料 profiles
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("auth_user_id", user.id)
+        .single();
 
-    const userId = profile.data.id;
+      document.getElementById("profile").textContent =
+        JSON.stringify(profile.data, null, 2);
 
-    // 2. 金幣錢包 coin_wallets
-    const wallet = await supabase
-      .from("coin_wallets")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+      const userId = profile.data.id;
 
-    document.getElementById("coins").textContent =
-      wallet.data ? wallet.data.balance : "0";
+      // 2. 金幣錢包 coin_wallets
+      const wallet = await supabase
+        .from("coin_wallets")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-    // 3. 最新 10 次遊戲紀錄
-    const sessions = await supabase
-      .from("game_sessions")
-      .select("*, games(name)")
-      .eq("user_id", userId)
-      .order("id", { ascending: false })
-      .limit(10);
+      document.getElementById("coins").textContent =
+        wallet.data ? wallet.data.balance : "0";
 
-    document.getElementById("sessions").textContent =
-      JSON.stringify(sessions.data, null, 2);
+      // 3. 最新 10 次遊戲紀錄
+      const sessions = await supabase
+        .from("game_sessions")
+        .select("*, games(name)")
+        .eq("user_id", userId)
+        .order("id", { ascending: false })
+        .limit(10);
 
-    // 4. 抽卡紀錄
-    const postcards = await supabase
-      .from("postcards")
-      .select("*")
-      .eq("user_id", userId)
-      .order("id", { ascending: false });
+      document.getElementById("sessions").textContent =
+        JSON.stringify(sessions.data, null, 2);
 
-    document.getElementById("postcards").textContent =
-      JSON.stringify(postcards.data, null, 2);
+      // 4. 抽卡紀錄
+      const postcards = await supabase
+        .from("postcards")
+        .select("*")
+        .eq("user_id", userId)
+        .order("id", { ascending: false });
 
-    // 5. 已購買物品
-    const items = await supabase
-      .from("user_items")
-      .select("*, store_items(name, emoji, type, price)")
-      .eq("user_id", userId);
+      document.getElementById("postcards").textContent =
+        JSON.stringify(postcards.data, null, 2);
 
-    document.getElementById("items").textContent =
-      JSON.stringify(items.data, null, 2);
-  }
+      // 5. 已購買物品
+      const items = await supabase
+        .from("user_items")
+        .select("*, items(name, emoji)")
+        .eq("user_id", userId)
+        .order("id", { ascending: false });
 
-  async function logout() {
-    await supabase.auth.signOut();
-    window.location.href = "login.html";
-  }
-</script>
+      document.getElementById("items").textContent =
+        JSON.stringify(items.data, null, 2);
+    }
 
+    // 啟動
+    checkLogin();
+  </script>
 </body>
 </html>
