@@ -243,18 +243,32 @@ async function ensureUserExists() {
   if (changed) await setDoc(ref, data, { merge: true });
 }
 
-/* ---------------- 讀自己的分數 ---------------- */
+/* ---------------- 讀自己的分數（從 sportReports 歷史最高分） ---------------- */
 async function loadMyStats() {
-  const snap = await getDoc(doc(db, "users", currentUser.uid));
-  const data = snap.data() || {};
-  const s = data.stats || { reflex: 0, river: 0, sea: 0 };
-
-  myReflex.textContent = typeof s.reflex === 'number' ? s.reflex : 0;
-  myRiver.textContent  = typeof s.river === 'number' ? s.river : 0;
-  mySea.textContent    = typeof s.sea === 'number' ? s.sea : 0;
+  try {
+    const snaps = await getDocs(collection(db, 'users', currentUser.uid, 'sportReports'));
+    const maxByGame = { reflex: 0, river: 0, sea: 0 };
+    snaps.forEach(snap => {
+      const d = snap.data();
+      const game = (d.game || '').toLowerCase();
+      const score = typeof d.score === 'number' ? d.score : 0;
+      
+      if (game.includes('reflex')) maxByGame.reflex = Math.max(maxByGame.reflex, score);
+      else if (game.includes('river')) maxByGame.river = Math.max(maxByGame.river, score);
+      else if (game.includes('sea') || game.includes('under')) maxByGame.sea = Math.max(maxByGame.sea, score);
+    });
+    myReflex.textContent = maxByGame.reflex;
+    myRiver.textContent = maxByGame.river;
+    mySea.textContent = maxByGame.sea;
+  } catch (err) {
+    console.warn('loadMyStats failed', err);
+    myReflex.textContent = 0;
+    myRiver.textContent = 0;
+    mySea.textContent = 0;
+  }
 }
 
-/* ---------------- 讀好友 + 平均 ---------------- */
+/* ---------------- 讀好友 + 最高分平均（從 sportReports） ---------------- */
 async function loadFriendData() {
   const ref = doc(db, "users", currentUser.uid);
   const me = await getDoc(ref);
@@ -272,12 +286,25 @@ async function loadFriendData() {
     if (!fSnap.exists()) continue;
     const fd = fSnap.data();
 
-    // 朋友的 stats 可能不存在，使用安全預設
-    const fs = fd.stats || { reflex: 0, river: 0, sea: 0 };
-    count++;
-    sum.reflex += (typeof fs.reflex === 'number') ? fs.reflex : 0;
-    sum.river  += (typeof fs.river === 'number') ? fs.river : 0;
-    sum.sea    += (typeof fs.sea === 'number') ? fs.sea : 0;
+    // 從好友的 sportReports 取歷史最高分
+    try {
+      const fReports = await getDocs(collection(db, 'users', uid, 'sportReports'));
+      const fMaxByGame = { reflex: 0, river: 0, sea: 0 };
+      fReports.forEach(snap => {
+        const rd = snap.data();
+        const game = (rd.game || '').toLowerCase();
+        const score = typeof rd.score === 'number' ? rd.score : 0;
+        if (game.includes('reflex')) fMaxByGame.reflex = Math.max(fMaxByGame.reflex, score);
+        else if (game.includes('river')) fMaxByGame.river = Math.max(fMaxByGame.river, score);
+        else if (game.includes('sea') || game.includes('under')) fMaxByGame.sea = Math.max(fMaxByGame.sea, score);
+      });
+      count++;
+      sum.reflex += fMaxByGame.reflex;
+      sum.river += fMaxByGame.river;
+      sum.sea += fMaxByGame.sea;
+    } catch (err) {
+      console.warn('friend sportReports load failed', err);
+    }
 
     const li = document.createElement("li");
     li.textContent = fd.nickname || fd.email;
@@ -435,6 +462,15 @@ const calendarDisplay = document.getElementById('calendarDisplay');
   } catch(e){ console.warn(e); }
 })();
 
+// 在初始化後載入本月資料
+(async function(){
+  // 當頁面初始化完成且使用者已載入後，嘗試 render
+  try { 
+    await new Promise(resolve => setTimeout(resolve, 500)); 
+    if (currentUser) { renderMonthReports(); }
+  } catch(e){/*ignore*/}
+})();
+
 monthPickerEl.addEventListener('change', () => { renderMonthReports(); });
 
 async function renderMonthReports(){
@@ -483,12 +519,6 @@ async function renderMonthReports(){
     calendarDisplay.innerHTML = '<p>載入失敗，請查看 console</p>';
   }
 }
-
-// 在初始化後載入本月資料
-(async function(){
-  // 當頁面初始化完成且使用者已載入後，嘗試 render
-  try { await new Promise(resolve => setTimeout(resolve, 300)); renderMonthReports(); } catch(e){/*ignore*/}
-})();
 
 </script>
 
