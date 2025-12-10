@@ -61,7 +61,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
-<script>
+<script type="module">
+import { onAuth, addCoins } from './firebase-utils.js';
 // === 遊戲參數調整區 ===
 const CONFIG = {
     baseSpeed: 0.03,
@@ -510,7 +511,19 @@ const timer=setInterval(()=>{
 
 function showEndScreen(reason){
   popup.style.display="flex"; endTitle.textContent = reason;
-  finalStats.innerHTML=`最終分數：${score}<br>最高時速：${maxSpeed} km/h`;
+  // 計算 River 獎勵：每 3 分給 5 金幣，至少 10 金幣
+  const reward = Math.max(10, Math.floor(score / 3) * 5);
+  finalStats.innerHTML=`最終分數：${score}<br>最高時速：${maxSpeed} km/h<br>獲得金幣：${reward}`;
+
+  try {
+    onAuth(async (user) => {
+      if (!user) return; // 未登入則跳過
+      try {
+        const newBal = await addCoins(user.uid, reward, `River reward: score ${score}`);
+        console.log('River reward applied, new balance:', newBal);
+      } catch (e) { console.error('addCoins error', e); }
+    });
+  } catch (e) { console.error('auth hook failed', e); }
 }
 
 function animate(){

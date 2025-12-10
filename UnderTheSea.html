@@ -30,7 +30,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
-<script>
+<script type="module">
+import { onAuth, addCoins } from './firebase-utils.js';
 const video=document.getElementById("video");
 const canvas=document.getElementById("gameCanvas");
 const ctx=canvas.getContext("2d");
@@ -125,7 +126,32 @@ function startTimer(){
   const timer=setInterval(()=>{
     timeLeft--;
     timerEl.textContent=`剩餘時間：${timeLeft}秒`;
-    if(timeLeft<=0){clearInterval(timer);alert(`時間到！你的分數是 ${score}`);location.reload();}
+    if(timeLeft<=0){
+        clearInterval(timer);
+        // 計算獎勵：每 2 分給 5 金幣，至少 10 金幣
+        const reward = Math.max(10, Math.floor(score / 2) * 5);
+        try {
+          onAuth(async (user) => {
+            if (!user) {
+              alert(`時間到！你的分數是 ${score}，獲得金幣：${reward}（未登入未記錄）`);
+              location.reload();
+              return;
+            }
+            try {
+              await addCoins(user.uid, reward, `UnderTheSea reward: score ${score}`);
+              alert(`時間到！你的分數是 ${score}，獲得金幣：${reward}`);
+            } catch (e) {
+              console.error('addCoins failed', e);
+              alert(`時間到！你的分數是 ${score}，但發放金幣失敗`);
+            }
+            location.reload();
+          });
+        } catch (e) {
+          console.error('auth hook failed', e);
+          alert(`時間到！你的分數是 ${score}`);
+          location.reload();
+        }
+    }
   },1000);
 }
 
