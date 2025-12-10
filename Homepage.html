@@ -105,32 +105,32 @@
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
-      location.href = "Login.html";
+      window.location.href = "Login.html";
       return;
     }
-
-    let nickname = "使用者"; // fallback
 
     try {
       const docRef = doc(db, "users", user.uid);
       const snap = await getDoc(docRef);
 
-      if (snap.exists() && snap.data().nickname) {
-        nickname = snap.data().nickname;
+      if (snap.exists()) {
+        const data = snap.data();
+        const nickname = data.nickname || "使用者";
+        welcome.textContent = `歡迎回來，${nickname}！`;
+      } else {
+        welcome.textContent = "找不到使用者資料。";
       }
-    } catch (e) {
-      console.error("Firestore 讀取錯誤：", e);
+    } catch (err) {
+      console.error("讀取使用者暱稱時發生錯誤：", err);
+      welcome.textContent = "讀取失敗，請重新登入。";
     }
-
-    welcome.textContent = `歡迎回來，${nickname}！`;
   });
 
-  logoutBtn.onclick = () => {
-    signOut(auth).then(() => {
-      alert("已登出！");
-      location.href = "Login.html";
-    });
-  };
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    alert("已登出！");
+    window.location.href = "Login.html";
+  });
 </script>
 
 </body>
