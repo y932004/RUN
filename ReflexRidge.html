@@ -96,22 +96,32 @@
 // ==========================================
 // 1. 遊戲設定
 // ==========================================
+
+// 擴充背景樣式設定
+const Backgrounds = {
+    'cyberpunk': { color: 0x110022, grid: 0xff00ff }, // 預設
+    'dark':      { color: 0x222222, grid: 0x444444 },
+    // 新增對應 Store 的場景
+    'forest':    { color: 0x2d5a27, grid: 0x8fbc8f }, // 綠色系
+    'ice':       { color: 0xcfefff, grid: 0x00bfff }, // 冰藍色系
+    'desert':    { color: 0xe6ccb2, grid: 0xd2691e }  // 沙漠黃系
+};
+
+// 從 localStorage 讀取玩家選擇的場景，如果沒有就用預設值 'cyberpunk'
+const savedScene = localStorage.getItem('equippedScene');
+
 const GameConfig = {
     baseSpeed: 0.15,
     isGameRunning: true,
     currentSkin: 'default',
-    currentBg: 'cyberpunk'
+    // 這裡改為使用讀取到的場景，並確保該場景存在於 Backgrounds 中
+    currentBg: (savedScene && Backgrounds[savedScene]) ? savedScene : 'cyberpunk'
 };
-
 const Skins = {
     'default': { name: "綠色像素人", colors: { head: 0x00ff00, body: 0x00aa00, limb: 0x00ff00 } },
     'robot': { name: "鋼鐵機甲", colors: { head: 0xcccccc, body: 0xff0000, limb: 0x888888 } }
 };
 
-const Backgrounds = {
-    'dark': { color: 0x222222, grid: 0x444444 },
-    'cyberpunk': { color: 0x110022, grid: 0xff00ff }
-};
 
 // ==========================================
 // 2. Three.js 場景
