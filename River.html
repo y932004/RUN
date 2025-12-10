@@ -522,6 +522,10 @@ function showEndScreen(reason){
         const newBal = await addCoins(user.uid, reward, `River reward: score ${score}`);
         console.log('River reward applied, new balance:', newBal);
       } catch (e) { console.error('addCoins error', e); }
+      try {
+        const mod = await import('./firebase-utils.js');
+        await mod.addSportReport(user.uid, { game: 'River', score, createdAt: new Date() });
+      } catch (e) { console.error('addSportReport failed', e); }
     });
   } catch (e) { console.error('auth hook failed', e); }
 }

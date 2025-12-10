@@ -185,8 +185,11 @@
 
 <!-- 💰 金幣與購物車 -->
 <div id="topRight">
-  <div id="coins">💰 $800</div>
+  <div id="coins">💰 $0</div>
+  <button id="refreshCoins" class="btn" style="margin-right:8px;padding:6px 10px;border-radius:8px;border:none;background:rgba(255,255,255,0.12);color:#fff">🔄 更新</button>
   <div id="cartBtn">🛒 購物車</div>
+  <button id="txBtn" style="margin-left:8px;padding:6px 10px;border-radius:8px;border:none;background:rgba(255,255,255,0.12);color:#fff">📜 購買紀錄</button>
+  
 </div>
 
 <!-- 🎮 標題置中 -->
@@ -262,7 +265,9 @@
 </div>
 
 <script type="module">
-import { onAuth, getCoins, spendCoins, getOwnedItems, addOwnedItem, updateUserField, getUserProfile } from './firebase-utils.js';
+import { onAuth, getCoins, spendCoins, getOwnedItems, addOwnedItem, updateUserField, getUserProfile, getTransactions, watchUserDoc } from './firebase-utils.js';
+import { showModal, hideModal, showToast } from './ui.js';
+import './ui.css';
 
 let coins = 0; // 後面會從 Firestore 載入
 let uid = null;
@@ -302,6 +307,19 @@ onAuth(async (user) => {
   try {
     coins = await getCoins(uid);
     coinsDisplay.textContent = `💰 $${coins}`;
+    // 建立即時監聽，當 server 更新 coins 時同步 UI
+    watchUserDoc(uid, (data) => {
+      if (!data) return;
+      if (typeof data.coins === 'number') {
+        coins = data.coins;
+        coinsDisplay.textContent = `💰 $${coins}`;
+      }
+      if (Array.isArray(data.ownedItems)) {
+        ownedItems = data.ownedItems;
+        localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
+        updateShelf();
+      }
+    });
     // 載入 owned items 與已裝備欄位
     try {
       const profile = await getUserProfile(uid);
@@ -473,6 +491,32 @@ document.getElementById('checkoutBtn').onclick = async () => {
     else if (String(e).includes('user-not-found')) alert('使用者資料未初始化，請重新登入後重試');
     else alert('結帳失敗：' + e.message);
   }
+};
+
+// 購買紀錄按鈕
+document.getElementById('txBtn').onclick = async () => {
+  if (!uid) return alert('請先登入以檢視購買紀錄');
+  try {
+    const txs = await getTransactions(uid);
+    if (!txs || txs.length === 0) return showModal({ title: '購買紀錄', body: '<p>目前沒有交易紀錄。</p>', buttons: [{label:'關閉', cls:'ghost', onClick:()=>hideModal()}] });
+
+    const container = document.createElement('div');
+    container.style.maxHeight = '320px'; container.style.overflow = 'auto';
+    txs.forEach(t => {
+      const d = document.createElement('div');
+      const ts = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString() : '';
+      d.innerHTML = `<div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04)"><b>${t.type}</b> ${t.amount} <br><small>${t.description||''} ${ts}</small></div>`;
+      container.appendChild(d);
+    });
+
+    showModal({ title: '購買紀錄', body: container, buttons: [{label:'關閉', cls:'ghost', onClick:()=>hideModal()}] });
+  } catch (e) { console.error(e); showToast('載入購買紀錄失敗'); }
+};
+
+// 手動刷新金幣
+document.getElementById('refreshCoins').onclick = async () => {
+  if (!uid) return alert('請先登入');
+  try { const b = await getCoins(uid); coins = b; coinsDisplay.textContent = `💰 $${coins}`; showToast('已更新'); } catch(e){ console.error(e); showToast('更新失敗'); }
 };
 </script>
 </body>

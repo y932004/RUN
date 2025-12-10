@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getDocs, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
@@ -54,6 +55,43 @@ export async function getUserProfile(uid) {
   const snap = await getDoc(docRef);
   if (!snap.exists()) return null;
   return snap.data();
+}
+
+// 取得 transactions（購買/獎勵紀錄），按時間降序
+export async function getTransactions(uid, limit = 50) {
+  if (!uid) throw new Error('no-uid');
+  const col = collection(db, 'users', uid, 'transactions');
+  const q = query(col, orderBy('createdAt', 'desc'));
+  const snaps = await getDocs(q);
+  return snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// 追蹤使用者 document（即時更新）
+export function watchUserDoc(uid, onChange) {
+  if (!uid) throw new Error('no-uid');
+  const ref = doc(db, 'users', uid);
+  return onSnapshot(ref, (snap) => {
+    if (!snap.exists()) return onChange(null);
+    onChange(snap.data());
+  });
+}
+
+// 新增運動報告至 users/{uid}/sportReports
+export async function addSportReport(uid, report) {
+  if (!uid) throw new Error('no-uid');
+  const col = collection(db, 'users', uid, 'sportReports');
+  const docRef = await addDoc(col, { ...report, createdAt: serverTimestamp() });
+  return docRef.id;
+}
+
+// 查找使用者 (透過 email)
+export async function findUserByEmail(email) {
+  const usersCol = collection(db, 'users');
+  const q = query(usersCol, where('email', '==', email));
+  const snaps = await getDocs(q);
+  if (snaps.empty) return null;
+  const d = snaps.docs[0];
+  return { uid: d.id, ...d.data() };
 }
 
 // 新增擁有物品（如果尚未擁有）

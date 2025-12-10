@@ -387,7 +387,7 @@ function endGame() {
         // 計算獎勵規則：每 5 分給 5 金幣（提高獎勵比例），至少 10 金幣
         const reward = Math.max(10, Math.floor(score / 5) * 5);
         document.getElementById('finalStats').textContent = `最終分數：${score}，獲得金幣：${reward}`;
-        // 嘗試把金幣發放到使用者帳戶（如果有登入）
+        // 嘗試把金幣發放到使用者帳戶（如果有登入），並寫入 sportReport
         try {
             onAuth(async (user) => {
                 if (!user) return; // 未登入則跳過
@@ -397,10 +397,13 @@ function endGame() {
                 } catch (e) {
                     console.error('addCoins error', e);
                 }
+                try {
+                    // 延遲載入 addSportReport，避免循環 import，直接從 firebase-utils 動態 import
+                    const mod = await import('./firebase-utils.js');
+                    await mod.addSportReport(user.uid, { game: 'ReflexRidge', score, createdAt: new Date() });
+                } catch (e) { console.error('addSportReport failed', e); }
             });
-        } catch (e) {
-            console.error('auth hook failed', e);
-        }
+        } catch (e) { console.error('auth hook failed', e); }
     clearInterval(timerInterval);
 }
 

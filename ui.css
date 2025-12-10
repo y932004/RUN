@@ -1,0 +1,25 @@
+/* 簡單統一的彈窗與按鈕樣式 */
+:root{
+  --modal-bg: rgba(10,14,20,0.85);
+  --card-bg: linear-gradient(180deg,#102027, #0b2630);
+  --accent: #00bcd4;
+  --accent-2: #4caf50;
+}
+
+.app-modal{display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:var(--modal-bg);backdrop-filter: blur(6px);}
+.app-modal .modal-card{width:360px;max-width:92%;background:var(--card-bg);border-radius:12px;padding:20px;color:#eef5f7;box-shadow:0 10px 30px rgba(0,0,0,0.6);}
+.app-modal .modal-card h3{margin:0 0 8px 0;color:var(--accent);}
+.app-modal .modal-card .modal-body{margin:8px 0 12px 0;font-size:15px;color:#d7eef3}
+.app-modal .modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.app-modal .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+.app-modal .btn.primary{background:var(--accent);color:#022;}
+.app-modal .btn.positive{background:var(--accent-2);color:#022}
+.app-modal .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#d7eef3}
+
+/* 小型通知 */
+.app-toast{position:fixed;right:18px;bottom:18px;background:rgba(0,0,0,0.7);color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.5);z-index:10000}
+
+/* camera missing message */
+.camera-warning{display:flex;flex-direction:column;gap:10px;align-items:center}
+.camera-warning .icon{font-size:46px}
+.camera-warning p{margin:0;color:#ffd9d9}

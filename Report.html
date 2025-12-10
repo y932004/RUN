@@ -149,6 +149,7 @@
   <p>你的邀請碼：<b id="myInviteCode">讀取中...</b></p>
 
   <input id="inviteInput" type="text" placeholder="輸入對方邀請碼（UID）">
+    <input id="inviteEmailInput" type="text" placeholder="或輸入對方 Email 加好友">
   <button id="addFriendBtn">加好友</button>
 
   <h4>📩 收到的好友邀請</h4>
@@ -165,8 +166,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, updateDoc,
-  arrayUnion, arrayRemove
+  arrayUnion, arrayRemove, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { findUserByEmail, addSportReport } from './firebase-utils.js';
+import { showModal, showToast, showCameraMissing } from './ui.js';
+import './ui.css';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
@@ -357,6 +361,44 @@ addFriendBtn.addEventListener("click", async () => {
   alert("好友邀請已送出！");
   inviteInput.value = "";
 });
+
+// 透過 Email 加好友（方便）
+document.getElementById('inviteEmailInput').addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const email = e.target.value.trim();
+  if (!email) return;
+  try {
+    const found = await findUserByEmail(email);
+    if (!found) return alert('查無此 Email 的使用者');
+    const targetUID = found.uid;
+    if (targetUID === currentUser.uid) return alert('不能加自己');
+    await updateDoc(doc(db, 'users', currentUser.uid), { 'friendRequests.sent': arrayUnion(targetUID) });
+    await updateDoc(doc(db, 'users', targetUID), { 'friendRequests.received': arrayUnion(currentUser.uid) });
+    showToast('好友邀請已送出');
+    e.target.value = '';
+  } catch (err) { console.error(err); showToast('加好友失敗'); }
+});
+
+/* ---------------- 顯示我的 sportReports（簡易） ---------------- */
+async function loadMyReports(){
+  const snaps = await getDocs(collection(db, 'users', currentUser.uid, 'sportReports'));
+  const list = document.createElement('div');
+  list.style.maxHeight='240px'; list.style.overflow='auto';
+  snaps.forEach(s=>{
+    const d = s.data();
+    const el = document.createElement('div');
+    const ts = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '';
+    el.innerHTML = `<div style="padding:6px;border-bottom:1px solid rgba(255,255,255,0.04)"><b>${d.game}</b> ${d.score} <br><small>${ts}</small></div>`;
+    list.appendChild(el);
+  });
+  if (snaps.empty) list.innerHTML = '<p>尚無運動報告</p>';
+  showModal({ title: '我的運動紀錄', body: list, buttons:[{label:'關閉',cls:'ghost',onClick:()=>{}}] });
+}
+
+// 在頁面加入按鈕以檢視我的報告
+const reportsBtn = document.createElement('button'); reportsBtn.textContent='檢視我的運動紀錄'; reportsBtn.style.marginLeft='12px';
+reportsBtn.onclick = loadMyReports;
+document.querySelector('.nav-buttons').appendChild(reportsBtn);
 
 /* ---------------- 長條圖（示意資料） ---------------- */
 new Chart(document.getElementById("stackedBar"), {

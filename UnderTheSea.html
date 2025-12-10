@@ -139,6 +139,8 @@ function startTimer(){
             }
             try {
               await addCoins(user.uid, reward, `UnderTheSea reward: score ${score}`);
+              // also add sport report
+              try { const mod = await import('./firebase-utils.js'); await mod.addSportReport(user.uid, { game: 'UnderTheSea', score, createdAt: new Date() }); } catch(e){console.error('addSportReport failed', e);}
               alert(`時間到！你的分數是 ${score}，獲得金幣：${reward}`);
             } catch (e) {
               console.error('addCoins failed', e);
