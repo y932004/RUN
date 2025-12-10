@@ -311,12 +311,19 @@ pose.setOptions({modelComplexity:0,smoothLandmarks:true,minDetectionConfidence:0
 pose.onResults(onPose);
 
 async function startCam(){
+  // 先確認是否有可用攝影機再啟動
+  try {
+      const devices = await navigator.mediaDevices && navigator.mediaDevices.enumerateDevices ? await navigator.mediaDevices.enumerateDevices() : [];
+      const hasVideo = devices.some(d => d.kind === 'videoinput');
+      if (!hasVideo) { alert('找不到攝影機裝置，請連接攝影機或允許權限'); return; }
+  } catch (e) { console.warn('enumerateDevices failed', e); }
+
   try {
       const stream=await navigator.mediaDevices.getUserMedia({video:true});
       video.srcObject=stream;await video.play();
       const cam=new Camera(video,{onFrame:async()=>{await pose.send({image:video});},width:320,height:180});
       cam.start();
-  } catch(e) { console.error(e); }
+  } catch(e) { console.error(e); alert('啟動攝影機失敗：' + (e.message || e)); }
 }
 startCam();
 

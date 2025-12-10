@@ -41,3 +41,14 @@ export function showCameraMissing(){
   body.innerHTML = `<div class="icon">📷</div><p>攝影機未啟動或未授權。請允許攝影機權限或使用可用的裝置。</p>`;
   showModal({ title: '攝影機未啟動', body, buttons: [{label:'關閉', cls:'ghost', onClick:hideModal}] });
 }
+
+export async function hasVideoDevice() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return false;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.some(d => d.kind === 'videoinput');
+  } catch (e) {
+    console.warn('enumerateDevices failed', e);
+    return false;
+  }
+}

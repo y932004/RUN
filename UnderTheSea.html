@@ -305,6 +305,13 @@ hands.onResults(r=>{
 });
 
 async function startCamera(){
+  // 先檢查是否有視訊裝置
+  try {
+    const devices = await navigator.mediaDevices && navigator.mediaDevices.enumerateDevices ? await navigator.mediaDevices.enumerateDevices() : [];
+    const hasVideo = devices.some(d => d.kind === 'videoinput');
+    if (!hasVideo) { alert('找不到攝影機裝置或未授權，遊戲將以無攝影機模式運行'); return; }
+  } catch(e){ console.warn('enumerateDevices failed', e); }
+
   try {
     const stream=await navigator.mediaDevices.getUserMedia({video:true});
     video.srcObject=stream;
@@ -328,7 +335,7 @@ async function startCamera(){
     },
     width:640,height:480
   });
-  camera.start();
+  try { camera.start(); } catch(e){ console.warn('camera.start failed', e); }
 
   for(let i=0;i<3;i++)spawnHole();
   spawnCreature(); 

@@ -286,21 +286,25 @@ const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@medi
 pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 pose.onResults(onPoseResults);
 
-const cameraUtils = new Camera(videoElement, {
-    onFrame: async () => { 
-        // 若 video 尚未就緒則跳過 frame
-        if (!videoElement || videoElement.readyState < 2) return;
-        try { await pose.send({image: videoElement}); } catch(e){ console.warn('pose send failed', e); }
-    },
-    width: 320, height: 240
-});
-try {
-    // MediaDevices 可能找不到裝置，start 可能拋錯
-    cameraUtils.start();
-} catch (e) {
-    console.warn('camera start failed', e);
-    try { showCameraMissing(); } catch(ex){ console.warn('showCameraMissing failed', ex); }
+// 啟動相機前先檢查是否有 video 裝置
+import { hasVideoDevice, showCameraMissing } from './ui.js';
+
+async function startCameraIfAvailable(){
+    const ok = await hasVideoDevice();
+    if (!ok) { try{ showCameraMissing(); } catch(e){ console.warn(e); } return; }
+
+    const cameraUtils = new Camera(videoElement, {
+        onFrame: async () => { 
+            if (!videoElement || videoElement.readyState < 2) return;
+            try { await pose.send({image: videoElement}); } catch(e){ console.warn('pose send failed', e); }
+        },
+        width: 320, height: 240
+    });
+
+    try { cameraUtils.start(); } catch (e) { console.warn('camera start failed', e); try{ showCameraMissing(); }catch{} }
 }
+
+startCameraIfAvailable();
 
 function onPoseResults(results) {
     // 繪製骨架

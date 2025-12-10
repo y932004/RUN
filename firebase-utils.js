@@ -37,7 +37,16 @@ export async function getCoins(uid) {
   if (!uid) throw new Error('no-uid');
   const docRef = doc(db, 'users', uid);
   const snap = await getDoc(docRef);
-  if (!snap.exists()) return 0;
+  if (!snap.exists()) {
+    // 如果 user doc 不存在，主動初始化（避免顯示 0 並保持行為一致）
+    try {
+      await setDoc(docRef, { coins: 800, ownedItems: [] }, { merge: true });
+      return 800;
+    } catch (e) {
+      console.warn('init user doc in getCoins failed', e);
+      return 0;
+    }
+  }
   const data = snap.data();
   // 如果 coins 欄位不存在，將使用者 coins 初始化為 800（向後相容且避免顯示 0）
   if (typeof data.coins === 'number') return data.coins;
