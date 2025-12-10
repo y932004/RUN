@@ -261,14 +261,17 @@
   </div>
 </div>
 
-<script>
-let coins = 800; // 可改為 localStorage.getItem('coins')
-let cart = [];
-let ownedItems = JSON.parse(localStorage.getItem('ownedItems')) || [];
+<script type="module">
+import { onAuth, getCoins, spendCoins, getOwnedItems, addOwnedItem, updateUserField, getUserProfile } from './firebase-utils.js';
 
-// 讀取裝備狀態
-let currentScene = localStorage.getItem('equippedScene') || 'cyberpunk';
-let currentSkin = localStorage.getItem('equippedSkin') || 'default';
+let coins = 0; // 後面會從 Firestore 載入
+let uid = null;
+let cart = [];
+let ownedItems = [];
+
+// 讀取裝備狀態（會在登入後從 server 載入）
+let currentScene = 'cyberpunk';
+let currentSkin = 'default';
 
 const coinsDisplay = document.getElementById('coins');
 const modal = document.getElementById('detailModal');
@@ -286,6 +289,39 @@ equipBtn.textContent = '使用此物品';
 modal.querySelector('.modal-content').insertBefore(equipBtn, modal.querySelector('.cancel'));
 
 let currentItem = null;
+
+// 監聽登入狀態並載入金幣
+onAuth(async (user) => {
+  if (!user) {
+    // 若未登入，導回登入頁
+    // location.href = 'Login.html'; // 可視情況啟用
+    console.log('未登入，商店仍可瀏覽，但購買將被阻擋');
+    return;
+  }
+  uid = user.uid;
+  try {
+    coins = await getCoins(uid);
+    coinsDisplay.textContent = `💰 $${coins}`;
+    // 載入 owned items 與已裝備欄位
+    try {
+      const profile = await getUserProfile(uid);
+      if (profile) {
+        ownedItems = profile.ownedItems || [];
+        if (profile.equippedScene) currentScene = profile.equippedScene;
+        if (profile.equippedSkin) currentSkin = profile.equippedSkin;
+      }
+      // 本地快取（非必要，但保留以便離線體驗）
+      localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
+      localStorage.setItem('equippedScene', currentScene);
+      localStorage.setItem('equippedSkin', currentSkin);
+      updateShelf();
+    } catch (e) {
+      console.error('載入 ownedItems 失敗', e);
+    }
+  } catch (e) {
+    console.error('載入金幣失敗', e);
+  }
+});
 
 function updateShelf() {
   document.querySelectorAll('.item').forEach(item => {
@@ -349,29 +385,43 @@ document.getElementById('closeModal').onclick = () => modal.style.display = 'non
 document.getElementById('closeCart').onclick = () => cartModal.style.display = 'none';
 
 // 購買邏輯
-buyBtn.onclick = () => {
-  if(coins >= currentItem.price) {
-    coins -= currentItem.price;
+buyBtn.onclick = async () => {
+  if (!uid) return alert('請先登入以進行購買');
+  try {
+    const newBalance = await spendCoins(uid, currentItem.price, `購買 ${currentItem.name}`);
+    coins = newBalance;
     coinsDisplay.textContent = `💰 $${coins}`;
-    ownedItems.push(currentItem.id);
-    localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
+    // 透過 addOwnedItem 同步到 Firestore
+    try {
+      const updated = await addOwnedItem(uid, currentItem.id);
+      ownedItems = updated;
+      localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
+    } catch (e2) {
+      console.error('addOwnedItem failed', e2);
+    }
     alert(`購買成功！獲得 ${currentItem.name}`);
     updateShelf();
     modal.style.display = 'none';
-  } else {
-    alert("金幣不足！");
+  } catch (e) {
+    console.error('Purchase error:', e);
+    if (String(e).includes('insufficient')) alert('金幣不足！');
+    else if (String(e).includes('user-not-found')) alert('使用者資料未初始化，請重新登入後重試');
+    else alert('購買失敗：' + e.message);
   }
 };
 
 // 裝備邏輯 (包含場景與角色)
-equipBtn.onclick = () => {
+equipBtn.onclick = async () => {
+  if (!uid) return alert('請先登入以變更裝備');
   if (currentItem.type === 'scene') {
     currentScene = currentItem.id;
     localStorage.setItem('equippedScene', currentScene);
+    try { await updateUserField(uid, 'equippedScene', currentScene); } catch(e){ console.error(e); }
     alert(`場景已更換為：${currentItem.name}`);
   } else if (currentItem.type === 'character') {
     currentSkin = currentItem.id;
     localStorage.setItem('equippedSkin', currentSkin); // 儲存角色設定
+    try { await updateUserField(uid, 'equippedSkin', currentSkin); } catch(e){ console.error(e); }
     alert(`角色已更換為：${currentItem.name}`);
   }
   updateShelf();
@@ -399,23 +449,29 @@ document.getElementById('cartBtn').onclick = () => {
   }
 };
 
-document.getElementById('checkoutBtn').onclick = () => {
+document.getElementById('checkoutBtn').onclick = async () => {
+  if (!uid) return alert('請先登入以進行購買');
   const total = cart.reduce((sum,i)=>sum+i.price,0);
   if(total===0) return alert("購物車是空的！");
-  if(coins >= total){
-    coins -= total;
+  try {
+    const newBalance = await spendCoins(uid, total, '購物車結帳');
+    coins = newBalance;
     coinsDisplay.textContent = `💰 $${coins}`;
-    cart.forEach(i => {
-       if(!ownedItems.includes(i.id)) ownedItems.push(i.id);
-    });
+    // 逐項加入 ownedItems（可優化為一次更新）
+    for (const it of cart) {
+      try { ownedItems = await addOwnedItem(uid, it.id); } catch(e){ console.error('addOwnedItem', e); }
+    }
     localStorage.setItem('ownedItems', JSON.stringify(ownedItems));
     alert(`購買成功！`);
     updateShelf();
     cart = [];
     document.getElementById('cartList').innerHTML = '<p>購物車已清空</p>';
     cartModal.style.display = 'none';
-  } else {
-    alert("金幣不足！");
+  } catch (e) {
+    console.error('Checkout error:', e);
+    if (String(e).includes('insufficient')) alert('金幣不足！');
+    else if (String(e).includes('user-not-found')) alert('使用者資料未初始化，請重新登入後重試');
+    else alert('結帳失敗：' + e.message);
   }
 };
 </script>

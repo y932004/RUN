@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Report - UserA01</title>
+  <title>Report</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     * { box-sizing: border-box; }
     body {
@@ -16,290 +17,362 @@
       flex-direction: column;
       align-items: center;
       height: 100vh;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
-    h1 {
-      margin: 10px 0;
-      font-size: 24px;
-      letter-spacing: 1px;
-    }
+    h1 { margin: 10px 0; font-size: 24px; }
 
-    /* 🔹返回按鈕區 */
     .nav-buttons {
       position: absolute;
       top: 10px;
       left: 10px;
       display: flex;
       gap: 10px;
-      z-index: 10;
     }
-
     .nav-buttons a {
       text-decoration: none;
-      color: white;
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 8px;
+      color: #fff;
       padding: 6px 12px;
-      font-size: 14px;
-      transition: 0.3s;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.3);
     }
 
-    .nav-buttons a:hover {
-      background: rgba(255, 255, 255, 0.4);
-      transform: translateY(-2px);
-    }
-
-    /* 外層布局：上下兩區 */
     .dashboard {
+      width: 95%;
+      max-width: 1200px;
+      height: 88%;
       display: flex;
       flex-direction: column;
-      width: 95%;
-      height: 90%;
-      max-width: 1200px;
       gap: 10px;
     }
 
-    /* 上半區：三個卡片 */
     .top-section {
       display: flex;
-      flex: 0.35;
       gap: 10px;
     }
-
     .info-box {
       flex: 1;
       background: rgba(255,255,255,0.1);
       border-radius: 10px;
-      text-align: center;
       padding: 10px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-      font-size: 14px;
-      transition: 0.3s;
+      text-align: center;
     }
+    .info-value { font-size: 26px; font-weight: bold; margin-top: 5px; }
+    .info-small { font-size: 12px; opacity: 0.8; }
 
-    .info-box:hover {
-      background: rgba(255,255,255,0.2);
-      transform: translateY(-3px);
-    }
-
-    .info-title { font-size: 18px; margin-bottom: 4px; }
-    .info-percent { font-size: 24px; font-weight: bold; margin: 4px 0; }
-    .info-location { font-size: 13px; color: #dcdde1; }
-
-    /* 下半區：圖表＋月曆 */
-    .bottom-section {
-      display: flex;
-      flex: 0.65;
-      gap: 10px;
-    }
-
+    .bottom-section { display: flex; flex: 1; gap: 10px; }
     .chart-box, .calendar {
+      flex: 1;
       background: rgba(255,255,255,0.1);
       border-radius: 10px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
       padding: 10px;
-      text-align: center;
     }
 
-    .chart-box {
-      flex: 0.6;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+    /* 好友系統 */
+    #friendSection {
+      width: 95%;
+      max-width: 1200px;
+      margin-top: 8px;
+      background: rgba(255,255,255,0.15);
+      padding: 12px;
+      border-radius: 10px;
     }
-
-    .calendar {
-      flex: 0.4;
-      font-size: 13px;
-      overflow: hidden;
-    }
-
-    select, input {
-      margin-top: 4px;
-      padding: 4px 8px;
+    #friendSection input {
+      width: 220px;
+      padding: 6px;
       border-radius: 6px;
       border: none;
-      font-size: 12px;
     }
-
-    .calendar table {
-      border-collapse: collapse;
-      width: 100%;
-      color: #fff;
-      font-size: 12px;
+    #friendSection button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      margin-left: 5px;
+      background: #74b9ff;
+      color: white;
     }
-
-    .calendar th, .calendar td {
-      text-align: center;
-      padding: 4px;
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-
-    .highlight {
-      background: rgba(255,255,255,0.25);
-      border-radius: 4px;
-    }
-
-    canvas {
-      width: 100% !important;
-      height: 220px !important;
-    }
+    #friendSection ul { padding-left: 20px; }
   </style>
 </head>
+
 <body>
 
-  <!-- 🔹返回按鈕 -->
-  <div class="nav-buttons">
-    <a href="Homepage.html">← 返回首頁</a>
-    <a href="Game.html">🎮 返回遊戲</a>
-  </div>
+<div class="nav-buttons">
+  <a href="Homepage.html">← 返回首頁</a>
+  <a href="Game.html">🎮 返回遊戲</a>
+</div>
 
-  <h1>🏆 煞氣ㄟ公館伍佰元 運動報表</h1>
+<h1 id="titleName">🏆 運動報表</h1>
 
-  <div class="dashboard">
-    <!-- 上半區：勝率 -->
-    <div class="top-section">
-      <div class="info-box" style="border-top: 4px solid #74b9ff;">
-        <div class="info-title">Reflex Ridge</div>
-        <div class="info-percent" style="color:#74b9ff;">贏過 85%</div>
-        <div class="info-location">的台北市大安區玩家</div>
-      </div>
+<div class="dashboard">
 
-      <div class="info-box" style="border-top: 4px solid #55efc4;">
-        <div class="info-title">River Adventure</div>
-        <div class="info-percent" style="color:#55efc4;">贏過 72%</div>
-        <div class="info-location">的台北市大安區玩家</div>
-      </div>
-
-      <div class="info-box" style="border-top: 4px solid #ffeaa7;">
-        <div class="info-title">Under The Sea</div>
-        <div class="info-percent" style="color:#ffeaa7;">贏過 64%</div>
-        <div class="info-location">的台北市大安區玩家</div>
-      </div>
+  <div class="top-section">
+    <div class="info-box" style="border-top:4px solid #74b9ff;">
+      <div>Reflex Ridge</div>
+      <div class="info-value" id="myReflex">--</div>
+      <div class="info-small" id="avgReflex">好友平均：--</div>
     </div>
 
-    <!-- 下半區：長條圖＋月曆 -->
-    <div class="bottom-section">
-      <div class="chart-box">
-        <h3 style="margin:5px;">運動時間分佈</h3>
-        <label for="timeView">顯示方式：</label>
-        <select id="timeView">
-          <option value="week">每週七天</option>
-          <option value="month">每月</option>
-        </select>
-        <canvas id="stackedBar"></canvas>
-      </div>
+    <div class="info-box" style="border-top:4px solid #55efc4;">
+      <div>River Adventure</div>
+      <div class="info-value" id="myRiver">--</div>
+      <div class="info-small" id="avgRiver">好友平均：--</div>
+    </div>
 
-      <div class="calendar">
-        <h3 style="margin:5px;">📅 運動紀錄查詢</h3>
-        <input type="month" id="monthPicker" value="2025-10">
-        <div id="calendarDisplay"></div>
-      </div>
+    <div class="info-box" style="border-top:4px solid #ffeaa7;">
+      <div>Under The Sea</div>
+      <div class="info-value" id="mySea">--</div>
+      <div class="info-small" id="avgSea">好友平均：--</div>
     </div>
   </div>
 
-  <script>
-    // ---------- 長條圖 ----------
-    const ctxStack = document.getElementById('stackedBar');
-    let stackedChart;
+  <div class="bottom-section">
+    <div class="chart-box">
+      <h3>📊 運動時間分佈（示意）</h3>
+      <canvas id="stackedBar"></canvas>
+    </div>
 
-    const colors = {
-      reflex: '#74b9ff',
-      river: '#55efc4',
-      sea: '#ffeaa7'
-    };
+    <div class="calendar">
+      <h3>📅 月曆紀錄（示意）</h3>
+      <input type="month" id="monthPicker" value="2025-10">
+      <div id="calendarDisplay"></div>
+    </div>
+  </div>
+</div>
 
-    const weekLabels = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
-    const monthLabels = ['1週', '2週', '3週', '4週'];
+<!-- 好友區 -->
+<div id="friendSection">
+  <h3>👥 好友系統（邀請碼）</h3>
 
-    const weekData = {
-      reflex: [15, 20, 25, 10, 5, 15, 20],
-      river: [10, 15, 20, 5, 10, 10, 15],
-      sea:   [5, 10, 15, 5, 0, 10, 5]
-    };
+  <p>你的邀請碼：<b id="myInviteCode">讀取中...</b></p>
 
-    const monthData = {
-      reflex: [40, 50, 35, 60],
-      river: [30, 40, 30, 50],
-      sea: [20, 30, 15, 40]
-    };
+  <input id="inviteInput" type="text" placeholder="輸入對方邀請碼（UID）">
+  <button id="addFriendBtn">加好友</button>
 
-    function createStackedChart(view) {
-      if (stackedChart) stackedChart.destroy();
-      const labels = view === 'month' ? monthLabels : weekLabels;
-      const dataSrc = view === 'month' ? monthData : weekData;
-      stackedChart = new Chart(ctxStack, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { label: 'Reflex Ridge', data: dataSrc.reflex, backgroundColor: colors.reflex },
-            { label: 'River Adventure', data: dataSrc.river, backgroundColor: colors.river },
-            { label: 'Under The Sea', data: dataSrc.sea, backgroundColor: colors.sea },
-          ]
-        },
-        options: {
-          maintainAspectRatio: false,
-          scales: {
-            x: { stacked: true, ticks: { color: '#fff' } },
-            y: { stacked: true, ticks: { color: '#fff' } }
-          },
-          plugins: { legend: { labels: { color: '#fff', boxWidth: 10 } } }
-        }
+  <h4>📩 收到的好友邀請</h4>
+  <ul id="receivedList"></ul>
+
+  <h4>👫 我的好友</h4>
+  <ul id="friendList"></ul>
+</div>
+
+<script type="module">
+
+/* ---------------- Firebase ---------------- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+  getFirestore, doc, getDoc, setDoc, updateDoc,
+  arrayUnion, arrayRemove
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
+  authDomain: "runrun-21a19.firebaseapp.com",
+  projectId: "runrun-21a19"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* ---------------- UI 元素 ---------------- */
+const myReflex = document.getElementById("myReflex");
+const myRiver  = document.getElementById("myRiver");
+const mySea    = document.getElementById("mySea");
+
+const avgReflex = document.getElementById("avgReflex");
+const avgRiver  = document.getElementById("avgRiver");
+const avgSea    = document.getElementById("avgSea");
+
+const inviteInput = document.getElementById("inviteInput");
+const addFriendBtn = document.getElementById("addFriendBtn");
+
+const myInviteCode = document.getElementById("myInviteCode");
+const receivedList = document.getElementById("receivedList");
+const friendList = document.getElementById("friendList");
+
+let currentUser = null;
+
+/* ---------------- 登入後流程 ---------------- */
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { location.href = "Login.html"; return; }
+
+  currentUser = user;
+  myInviteCode.textContent = user.uid;
+  document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
+
+  await ensureUserExists();
+  await loadMyStats();
+  await loadFriendData();
+});
+
+/* ---------------- 若 Firestore 沒資料 → 自動補 ---------------- */
+async function ensureUserExists() {
+  const ref = doc(db, "users", currentUser.uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      email: currentUser.email,
+      nickname: currentUser.email.split("@")[0],
+      stats: { reflex: 0, river: 0, sea: 0 },
+      friends: [],
+      friendRequests: { sent: [], received: [] }
+    });
+    return;
+  }
+
+  // 補缺少欄位（避免 undefined 錯誤）
+  const data = snap.data();
+  let changed = false;
+
+  if (!data.stats) { data.stats = { reflex: 0, river: 0, sea: 0 }; changed = true; }
+  if (!data.friends) { data.friends = []; changed = true; }
+  if (!data.friendRequests) { data.friendRequests = { sent: [], received: [] }; changed = true; }
+  if (!data.friendRequests.sent) { data.friendRequests.sent = []; changed = true; }
+  if (!data.friendRequests.received) { data.friendRequests.received = []; changed = true; }
+
+  if (changed) await setDoc(ref, data, { merge: true });
+}
+
+/* ---------------- 讀自己的分數 ---------------- */
+async function loadMyStats() {
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const s = snap.data().stats;
+
+  myReflex.textContent = s.reflex;
+  myRiver.textContent  = s.river;
+  mySea.textContent    = s.sea;
+}
+
+/* ---------------- 讀好友 + 平均 ---------------- */
+async function loadFriendData() {
+  const ref = doc(db, "users", currentUser.uid);
+  const me = await getDoc(ref);
+  const d = me.data();
+
+  const friends = d.friends || [];
+
+  let count = 0;
+  let sum = { reflex: 0, river: 0, sea: 0 };
+
+  friendList.innerHTML = "";
+
+  for (let uid of friends) {
+    const fSnap = await getDoc(doc(db, "users", uid));
+    if (!fSnap.exists()) continue;
+    const fd = fSnap.data();
+
+    count++;
+    sum.reflex += fd.stats.reflex;
+    sum.river  += fd.stats.river;
+    sum.sea    += fd.stats.sea;
+
+    const li = document.createElement("li");
+    li.textContent = fd.nickname || fd.email;
+    friendList.appendChild(li);
+  }
+
+  avgReflex.textContent = count ? `好友平均：${(sum.reflex / count).toFixed(1)}` : "好友平均：--";
+  avgRiver .textContent = count ? `好友平均：${(sum.river  / count).toFixed(1)}` : "好友平均：--";
+  avgSea   .textContent = count ? `好友平均：${(sum.sea    / count).toFixed(1)}` : "好友平均：--";
+
+  loadFriendRequests();
+}
+
+/* ---------------- 顯示收到的好友邀請（已修正） ---------------- */
+async function loadFriendRequests() {
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const data = snap.data();
+
+  const received = data.friendRequests.received || [];
+
+  receivedList.innerHTML = "";
+
+  for (let senderUID of received) {
+    const senderSnap = await getDoc(doc(db, "users", senderUID));
+    if (!senderSnap.exists()) continue;
+
+    const sender = senderSnap.data();
+
+    const li = document.createElement("li");
+    li.innerHTML = `
+      ${sender.nickname || sender.email}
+      <button class="accept">接受</button>
+      <button class="reject">拒絕</button>
+    `;
+
+    /* 接受好友邀請 */
+    li.querySelector(".accept").onclick = async () => {
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        friends: arrayUnion(senderUID),
+        "friendRequests.received": arrayRemove(senderUID)
       });
-    }
-    createStackedChart('week');
 
-    document.getElementById('timeView').addEventListener('change', e => {
-      createStackedChart(e.target.value);
-    });
+      await updateDoc(doc(db, "users", senderUID), {
+        friends: arrayUnion(currentUser.uid),
+        "friendRequests.sent": arrayRemove(currentUser.uid)
+      });
 
-    // ---------- 月曆 ----------
-    const activityRecords = {
-      '2025-10-20': 30,
-      '2025-10-21': 45,
-      '2025-10-22': 20,
-      '2025-10-23': 60
+      loadFriendData();
     };
 
-    function generateCalendar(year, month) {
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      const startDay = firstDay.getDay();
-      const daysInMonth = lastDay.getDate();
+    /* 拒絕好友邀請 */
+    li.querySelector(".reject").onclick = async () => {
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        "friendRequests.received": arrayRemove(senderUID)
+      });
 
-      let html = '<table><tr>';
-      const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-      weekDays.forEach(d => html += `<th>${d}</th>`);
-      html += '</tr><tr>';
+      await updateDoc(doc(db, "users", senderUID), {
+        "friendRequests.sent": arrayRemove(currentUser.uid)
+      });
 
-      for (let i = 0; i < startDay; i++) html += '<td></td>';
+      loadFriendData();
+    };
 
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const minutes = activityRecords[dateKey];
-        html += `<td class="${minutes ? 'highlight' : ''}">
-          ${day}<br>${minutes ? minutes + ' 分' : ''}
-        </td>`;
-        if ((day + startDay) % 7 === 0) html += '</tr><tr>';
-      }
+    receivedList.appendChild(li);
+  }
+}
 
-      html += '</tr></table>';
-      document.getElementById('calendarDisplay').innerHTML = html;
-    }
+/* ---------------- 使用邀請碼（UID）加好友 ---------------- */
+addFriendBtn.addEventListener("click", async () => {
+  const targetUID = inviteInput.value.trim();
+  if (!targetUID) return alert("請輸入邀請碼（UID）");
+  if (targetUID === currentUser.uid) return alert("不能加自己！");
 
-    const monthPicker = document.getElementById('monthPicker');
-    const [year, month] = monthPicker.value.split('-').map(Number);
-    generateCalendar(year, month - 1);
+  const targetSnap = await getDoc(doc(db, "users", targetUID));
+  if (!targetSnap.exists()) return alert("查無此邀請碼！");
 
-    monthPicker.addEventListener('change', () => {
-      const [year, month] = monthPicker.value.split('-').map(Number);
-      generateCalendar(year, month - 1);
-    });
-  </script>
+  await updateDoc(doc(db, "users", currentUser.uid), {
+    "friendRequests.sent": arrayUnion(targetUID)
+  });
+
+  await updateDoc(doc(db, "users", targetUID), {
+    "friendRequests.received": arrayUnion(currentUser.uid)
+  });
+
+  alert("好友邀請已送出！");
+  inviteInput.value = "";
+});
+
+/* ---------------- 長條圖（示意資料） ---------------- */
+new Chart(document.getElementById("stackedBar"), {
+  type: 'bar',
+  data: {
+    labels: ['週一','週二','週三','週四','週五','週六','週日'],
+    datasets: [
+      { label: 'Reflex Ridge', data: [10,20,30,40,35,20,10], backgroundColor: '#74b9ff' },
+      { label: 'River Adventure', data: [5,15,25,20,15,10,5], backgroundColor: '#55efc4' },
+      { label: 'Under The Sea', data: [8,12,18,22,15,9,6], backgroundColor: '#ffeaa7' }
+    ]
+  },
+  options: { scales: { x: { stacked: true }, y: { stacked: true } } }
+});
+
+</script>
 
 </body>
 </html>
-

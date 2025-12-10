@@ -92,7 +92,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
-<script>
+<script type="module">
+import { onAuth, addCoins } from './firebase-utils.js';
 // ==========================================
 // 1. 遊戲設定
 // ==========================================
@@ -383,7 +384,23 @@ const timerInterval = setInterval(() => {
 function endGame() {
     GameConfig.isGameRunning = false;
     document.getElementById('popup').style.display = "flex";
-    document.getElementById('finalStats').textContent = "最終分數：" + score;
+        // 計算獎勵規則：每 5 分給 5 金幣（提高獎勵比例），至少 10 金幣
+        const reward = Math.max(10, Math.floor(score / 5) * 5);
+        document.getElementById('finalStats').textContent = `最終分數：${score}，獲得金幣：${reward}`;
+        // 嘗試把金幣發放到使用者帳戶（如果有登入）
+        try {
+            onAuth(async (user) => {
+                if (!user) return; // 未登入則跳過
+                try {
+                    const newBal = await addCoins(user.uid, reward, `ReflexRidge reward: score ${score}`);
+                    console.log('reward applied, new balance:', newBal);
+                } catch (e) {
+                    console.error('addCoins error', e);
+                }
+            });
+        } catch (e) {
+            console.error('auth hook failed', e);
+        }
     clearInterval(timerInterval);
 }
 
@@ -397,13 +414,13 @@ function checkCollisions() {
             if (obs.userData.type === OBS_TYPE_HIGH && !playerState.isCrouching) hit = true;
 
             if (hit) {
-                score = Math.max(0, score - 5);
+                score = Math.max(0, score - 2);
                 obs.material.color.set(0x555555);
                 obs.userData.active = false;
                 camera.position.x = (Math.random()-0.5)*0.5;
                 setTimeout(()=>camera.position.x=0, 100);
             } else {
-                if(!obs.userData.passed) { score += 10; obs.userData.passed = true; }
+                if(!obs.userData.passed) { score += 20; obs.userData.passed = true; }
             }
             document.getElementById('score').textContent = "分數：" + score;
         }
