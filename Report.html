@@ -17,12 +17,11 @@
       flex-direction: column;
       align-items: center;
       height: 100vh;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
     h1 { margin: 10px 0; font-size: 24px; }
 
-    /* 返回按鈕 */
     .nav-buttons {
       position: absolute;
       top: 10px;
@@ -39,11 +38,10 @@
       border: 1px solid rgba(255,255,255,0.3);
     }
 
-    /* 外層布局 */
     .dashboard {
       width: 95%;
       max-width: 1200px;
-      height: 90%;
+      height: 88%;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -60,14 +58,10 @@
       padding: 10px;
       text-align: center;
     }
-    .info-value {
-      font-size: 28px;
-      font-weight: bold;
-      margin-top: 5px;
-    }
+    .info-value { font-size: 26px; font-weight: bold; margin-top: 5px; }
     .info-small { font-size: 12px; opacity: 0.8; }
 
-    .bottom-section { display: flex; gap: 10px; height: 100%; }
+    .bottom-section { display: flex; flex: 1; gap: 10px; }
     .chart-box, .calendar {
       flex: 1;
       background: rgba(255,255,255,0.1);
@@ -79,26 +73,27 @@
     #friendSection {
       width: 95%;
       max-width: 1200px;
-      margin-top: 10px;
-      background: rgba(255,255,255,0.1);
-      padding: 10px;
+      margin-top: 8px;
+      background: rgba(255,255,255,0.15);
+      padding: 12px;
       border-radius: 10px;
     }
     #friendSection input {
       width: 220px;
-      padding: 5px;
+      padding: 6px;
       border-radius: 6px;
       border: none;
     }
     #friendSection button {
-      padding: 6px 12px;
-      border-radius: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
       border: none;
       cursor: pointer;
       margin-left: 5px;
       background: #74b9ff;
       color: white;
     }
+    #friendSection ul { padding-left: 20px; }
   </style>
 </head>
 
@@ -113,7 +108,6 @@
 
 <div class="dashboard">
 
-  <!-- 分數區 -->
   <div class="top-section">
     <div class="info-box" style="border-top:4px solid #74b9ff;">
       <div>Reflex Ridge</div>
@@ -134,7 +128,6 @@
     </div>
   </div>
 
-  <!-- 圖表 & 月曆 -->
   <div class="bottom-section">
     <div class="chart-box">
       <h3>📊 運動時間分佈（示意）</h3>
@@ -142,20 +135,20 @@
     </div>
 
     <div class="calendar">
-      <h3>📅 運動紀錄（示意）</h3>
+      <h3>📅 月曆紀錄（示意）</h3>
       <input type="month" id="monthPicker" value="2025-10">
       <div id="calendarDisplay"></div>
     </div>
   </div>
 </div>
 
-<!-- 好友系統 -->
+<!-- 好友區 -->
 <div id="friendSection">
   <h3>👥 好友系統（邀請碼）</h3>
 
   <p>你的邀請碼：<b id="myInviteCode">讀取中...</b></p>
 
-  <input id="inviteInput" type="text" placeholder="輸入對方的邀請碼（UID）">
+  <input id="inviteInput" type="text" placeholder="輸入對方邀請碼（UID）">
   <button id="addFriendBtn">加好友</button>
 
   <h4>📩 收到的好友邀請</h4>
@@ -165,48 +158,27 @@
   <ul id="friendList"></ul>
 </div>
 
-
 <script type="module">
 
-/* ------------------------------
-    Firebase Import
------------------------------- */
+/* ---------------- Firebase ---------------- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { 
-  getAuth, 
-  onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
   getFirestore, doc, getDoc, setDoc, updateDoc,
-  collection, query, where, getDocs,
   arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-
-/* ------------------------------
-    Firebase 設定
------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyB9dkg-ZKdgU9rNur3XodRYSnBZkHfldGI",
   authDomain: "runrun-21a19.firebaseapp.com",
-  projectId: "runrun-21a19",
-  storageBucket: "runrun-21a19.firebasestorage.app",
-  messagingSenderId: "57222188374",
-  appId: "1:57222188374:web:ea4bf396424bdbca9d9af7",
-  measurementId: "G-PS1B2X8NS2"
+  projectId: "runrun-21a19"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-
-/* ------------------------------
-    全域變數
------------------------------- */
-let currentUser = null;
-
+/* ---------------- UI 元素 ---------------- */
 const myReflex = document.getElementById("myReflex");
 const myRiver  = document.getElementById("myRiver");
 const mySea    = document.getElementById("mySea");
@@ -218,35 +190,27 @@ const avgSea    = document.getElementById("avgSea");
 const inviteInput = document.getElementById("inviteInput");
 const addFriendBtn = document.getElementById("addFriendBtn");
 
+const myInviteCode = document.getElementById("myInviteCode");
 const receivedList = document.getElementById("receivedList");
 const friendList = document.getElementById("friendList");
 
+let currentUser = null;
 
-/* ------------------------------
-    登入後主流程
------------------------------- */
+/* ---------------- 登入後流程 ---------------- */
 onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "Login.html";
-    return;
-  }
+  if (!user) { location.href = "Login.html"; return; }
 
   currentUser = user;
-  document.getElementById("titleName").innerText =
-    `🏆 ${user.email} 的運動報表`;
+  myInviteCode.textContent = user.uid;
+  document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
 
-  document.getElementById("myInviteCode").innerText = user.uid;
-
-  await ensureUserDocExists();
+  await ensureUserExists();
   await loadMyStats();
   await loadFriendData();
 });
 
-
-/* ------------------------------
-    自動補上 Firestore 使用者資料
------------------------------- */
-async function ensureUserDocExists() {
+/* ---------------- 若 Firestore 沒資料 → 自動補 ---------------- */
+async function ensureUserExists() {
   const ref = doc(db, "users", currentUser.uid);
   const snap = await getDoc(ref);
 
@@ -254,34 +218,37 @@ async function ensureUserDocExists() {
     await setDoc(ref, {
       email: currentUser.email,
       nickname: currentUser.email.split("@")[0],
-      coins: 0,
-      friends: [],
-      friendRequests: { sent: [], received: [] },
       stats: { reflex: 0, river: 0, sea: 0 },
-      createdAt: new Date(),
-      lastUpdated: new Date()
+      friends: [],
+      friendRequests: { sent: [], received: [] }
     });
+    return;
   }
+
+  // 補缺少欄位（避免 undefined 錯誤）
+  const data = snap.data();
+  let changed = false;
+
+  if (!data.stats) { data.stats = { reflex: 0, river: 0, sea: 0 }; changed = true; }
+  if (!data.friends) { data.friends = []; changed = true; }
+  if (!data.friendRequests) { data.friendRequests = { sent: [], received: [] }; changed = true; }
+  if (!data.friendRequests.sent) { data.friendRequests.sent = []; changed = true; }
+  if (!data.friendRequests.received) { data.friendRequests.received = []; changed = true; }
+
+  if (changed) await setDoc(ref, data, { merge: true });
 }
 
-
-/* ------------------------------
-    讀自己的遊戲分數
------------------------------- */
+/* ---------------- 讀自己的分數 ---------------- */
 async function loadMyStats() {
-  const ref = doc(db, "users", currentUser.uid);
-  const snap = await getDoc(ref);
-  const d = snap.data();
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const s = snap.data().stats;
 
-  myReflex.innerText = d.stats.reflex;
-  myRiver.innerText  = d.stats.river;
-  mySea.innerText    = d.stats.sea;
+  myReflex.textContent = s.reflex;
+  myRiver.textContent  = s.river;
+  mySea.textContent    = s.sea;
 }
 
-
-/* ------------------------------
-    讀好友資料 + 平均分數
------------------------------- */
+/* ---------------- 讀好友 + 平均 ---------------- */
 async function loadFriendData() {
   const ref = doc(db, "users", currentUser.uid);
   const me = await getDoc(ref);
@@ -289,18 +256,17 @@ async function loadFriendData() {
 
   const friends = d.friends || [];
 
-  let c = 0;
+  let count = 0;
   let sum = { reflex: 0, river: 0, sea: 0 };
 
   friendList.innerHTML = "";
 
   for (let uid of friends) {
-    const f = await getDoc(doc(db, "users", uid));
-    if (!f.exists()) continue;
+    const fSnap = await getDoc(doc(db, "users", uid));
+    if (!fSnap.exists()) continue;
+    const fd = fSnap.data();
 
-    const fd = f.data();
-
-    c++;
+    count++;
     sum.reflex += fd.stats.reflex;
     sum.river  += fd.stats.river;
     sum.sea    += fd.stats.sea;
@@ -310,34 +276,36 @@ async function loadFriendData() {
     friendList.appendChild(li);
   }
 
-  avgReflex.innerText = c ? `好友平均：${(sum.reflex/c).toFixed(1)}` : "好友平均：--";
-  avgRiver.innerText  = c ? `好友平均：${(sum.river/c).toFixed(1)}`  : "好友平均：--";
-  avgSea.innerText    = c ? `好友平均：${(sum.sea/c).toFixed(1)}`    : "好友平均：--";
+  avgReflex.textContent = count ? `好友平均：${(sum.reflex / count).toFixed(1)}` : "好友平均：--";
+  avgRiver .textContent = count ? `好友平均：${(sum.river  / count).toFixed(1)}` : "好友平均：--";
+  avgSea   .textContent = count ? `好友平均：${(sum.sea    / count).toFixed(1)}` : "好友平均：--";
 
   loadFriendRequests();
 }
 
-
-/* ------------------------------
-    顯示收到的好友邀請
------------------------------- */
+/* ---------------- 顯示收到的好友邀請（已修正） ---------------- */
 async function loadFriendRequests() {
-  const me = await getDoc(doc(db, "users", currentUser.uid));
-  const d = me.data();
+  const snap = await getDoc(doc(db, "users", currentUser.uid));
+  const data = snap.data();
+
+  const received = data.friendRequests.received || [];
 
   receivedList.innerHTML = "";
 
-  for (let senderUID of d.friendRequests.received) {
-    const snap = await getDoc(doc(db, "users", senderUID));
-    const fd = snap.data();
+  for (let senderUID of received) {
+    const senderSnap = await getDoc(doc(db, "users", senderUID));
+    if (!senderSnap.exists()) continue;
+
+    const sender = senderSnap.data();
 
     const li = document.createElement("li");
     li.innerHTML = `
-      ${fd.nickname || fd.email}
+      ${sender.nickname || sender.email}
       <button class="accept">接受</button>
       <button class="reject">拒絕</button>
     `;
 
+    /* 接受好友邀請 */
     li.querySelector(".accept").onclick = async () => {
       await updateDoc(doc(db, "users", currentUser.uid), {
         friends: arrayUnion(senderUID),
@@ -352,6 +320,7 @@ async function loadFriendRequests() {
       loadFriendData();
     };
 
+    /* 拒絕好友邀請 */
     li.querySelector(".reject").onclick = async () => {
       await updateDoc(doc(db, "users", currentUser.uid), {
         "friendRequests.received": arrayRemove(senderUID)
@@ -368,19 +337,14 @@ async function loadFriendRequests() {
   }
 }
 
-
-/* ------------------------------
-    加好友（使用 UID 邀請碼）
------------------------------- */
+/* ---------------- 使用邀請碼（UID）加好友 ---------------- */
 addFriendBtn.addEventListener("click", async () => {
   const targetUID = inviteInput.value.trim();
-  if (!targetUID) return alert("請輸入邀請碼");
+  if (!targetUID) return alert("請輸入邀請碼（UID）");
   if (targetUID === currentUser.uid) return alert("不能加自己！");
 
-  const ref = doc(db, "users", targetUID);
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) return alert("查無此邀請碼！");
+  const targetSnap = await getDoc(doc(db, "users", targetUID));
+  if (!targetSnap.exists()) return alert("查無此邀請碼！");
 
   await updateDoc(doc(db, "users", currentUser.uid), {
     "friendRequests.sent": arrayUnion(targetUID)
@@ -394,25 +358,18 @@ addFriendBtn.addEventListener("click", async () => {
   inviteInput.value = "";
 });
 
-
-/* ------------------------------
-    長條圖（示意假資料）
------------------------------- */
-const ctx = document.getElementById('stackedBar');
-
-new Chart(ctx, {
+/* ---------------- 長條圖（示意資料） ---------------- */
+new Chart(document.getElementById("stackedBar"), {
   type: 'bar',
   data: {
     labels: ['週一','週二','週三','週四','週五','週六','週日'],
     datasets: [
-      { label: 'Reflex Ridge', data: [15,20,25,10,5,15,20], backgroundColor: '#74b9ff' },
-      { label: 'River Adventure', data: [10,15,20,5,10,10,15], backgroundColor: '#55efc4' },
-      { label: 'Under The Sea', data: [5,10,15,5,0,10,5], backgroundColor: '#ffeaa7' },
+      { label: 'Reflex Ridge', data: [10,20,30,40,35,20,10], backgroundColor: '#74b9ff' },
+      { label: 'River Adventure', data: [5,15,25,20,15,10,5], backgroundColor: '#55efc4' },
+      { label: 'Under The Sea', data: [8,12,18,22,15,9,6], backgroundColor: '#ffeaa7' }
     ]
   },
-  options: {
-    scales: { x: { stacked: true }, y: { stacked: true } }
-  }
+  options: { scales: { x: { stacked: true }, y: { stacked: true } } }
 });
 
 </script>
