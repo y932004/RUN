@@ -17,7 +17,6 @@
     overflow: hidden;
   }
 
-  /* 🔹返回按鈕區域 */
   .nav-buttons {
     position: absolute;
     top: 10px;
@@ -64,6 +63,15 @@
     transform: scale(1.05);
   }
 
+  /* 🚫 禁用按鈕樣式 */
+  #drawBtn:disabled {
+    background: #bdc3c7;
+    color: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
   #printer {
     position: relative;
     width: 600px;
@@ -72,14 +80,14 @@
     border-radius: 10px;
     margin-top: 40px;
     overflow: hidden;
-    display: none;
+    display: none; /* 預設隱藏 */
     justify-content: flex-start;
     align-items: center;
   }
 
   #postcard {
     position: absolute;
-    left: -620px;
+    left: -620px; /* 初始位置在左側外 */
     width: 600px;
     height: 200px;
     background: #fff;
@@ -88,7 +96,13 @@
     overflow: hidden;
     border: 3px solid #ccc;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    transition: left 3s ease;
+    transition: left 3s ease; /* 動畫效果 */
+  }
+
+  /* 當我們直接顯示結果時，移除 transition 以免出現滑動 */
+  #postcard.no-anim {
+    transition: none;
+    left: 0px !important;
   }
 
   .left {
@@ -135,42 +149,12 @@
     transform: rotate(5deg);
   }
 
-  .fruit {
-    font-size: 72px;
-    position: relative;
-  }
-
-  .eye {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    background: #000;
-    border-radius: 50%;
-  }
-  .eye.left { top: 25px; left: 20px; }
-  .eye.right { top: 25px; right: 20px; }
-
-  .limb {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    background: #000;
-    border-radius: 50%;
-  }
-  .limb.arm-left { left: 10px; top: 60px; }
-  .limb.arm-right { right: 10px; top: 60px; }
-  .limb.leg-left { left: 25px; bottom: 15px; }
-  .limb.leg-right { right: 25px; bottom: 15px; }
-
   .aurora {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: radial-gradient(circle at 30% 20%, rgba(144,238,255,0.7), transparent 60%),
-                radial-gradient(circle at 70% 80%, rgba(255,160,255,0.5), transparent 60%);
-    mix-blend-mode: screen;
     z-index: 0;
   }
-
+  
   .right .date {
     text-align: right;
     color: #555;
@@ -180,16 +164,17 @@
   canvas { display: none; }
   
   .fruit-img{
-  width: 140px;
-  height: 140px;
-  object-fit: contain;
-  display: block;
-}
+    width: 140px;
+    height: 140px;
+    object-fit: contain;
+    display: block;
+    z-index: 1;
+    position: relative;
+  }
 </style>
 </head>
 <body>
 
-<!-- 🔹返回按鈕 -->
 <div class="nav-buttons">
   <a href="Homepage.html">← 返回首頁</a>
   <a href="Game.html">🎮 返回遊戲</a>
@@ -202,8 +187,8 @@
   <div id="postcard">
     <div class="left">
       <div class="aurora"></div>
-      <div id="fruitCharacter" style="z-index:1;"></div>
-      <div id="fruitName" style="margin-top:8px;font-size:20px;"></div>
+      <div id="fruitCharacter"></div>
+      <div id="fruitName" style="margin-top:8px;font-size:20px; z-index:1; position:relative;"></div>
     </div>
     <div class="right">
       <div class="logo">RUN!</div>
@@ -213,7 +198,7 @@
   </div>
 </div>
 
-<button id="downloadBtn">💾 下載明信片</button>
+<button id="downloadBtn" style="display:none;">💾 下載明信片</button>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
@@ -224,12 +209,14 @@ const fruits = [
   { name:"西瓜寶",    img:"imagePostcard/watermelon.png" },
   { name:"橘子丸",    img:"imagePostcard/orange.png" }
 ];
+
 const auroraColors = [
   "radial-gradient(circle at top left, #9be7ff, #2c3e50)",
   "radial-gradient(circle at top, #c2a3ff, #314870)",
   "radial-gradient(circle at bottom, #a7ffd0, #00696f)",
   "radial-gradient(circle at top right, #ffd1f3, #3c4573)"
 ];
+
 const printer = document.getElementById("printer");
 const postcard = document.getElementById("postcard");
 const drawBtn = document.getElementById("drawBtn");
@@ -238,38 +225,103 @@ const fruitName = document.getElementById("fruitName");
 const dateText = document.getElementById("dateText");
 const downloadBtn = document.getElementById("downloadBtn");
 
+// 🔑 這是存資料的鑰匙
+const STORAGE_KEY = 'daily_postcard_record';
+
 function getToday(){
-  const d=new Date();
+  const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
 }
 
-drawBtn.addEventListener("click", ()=>{
-  const fruit = fruits[Math.floor(Math.random()*fruits.length)];
-  const aurora = auroraColors[Math.floor(Math.random()*auroraColors.length)];
+// 🛠️ 負責把資料填進明信片的函式 (重複利用)
+function renderCardContent(fIndex, aIndex) {
+  const fruit = fruits[fIndex];
+  const aurora = auroraColors[aIndex];
 
-  printer.style.display="flex";
-  postcard.style.left="-620px";
-  downloadBtn.style.display="none";
+  document.querySelector(".left").style.background = aurora;
+  fruitCharacter.innerHTML = `<img class="fruit-img" src="${fruit.img}" alt="${fruit.name}">`;
+  fruitName.textContent = fruit.name;
+  dateText.textContent = `📅 ${getToday()}`;
+}
 
-  document.querySelector(".left").style.background=aurora;
-  fruitCharacter.innerHTML = `
-    <img class="fruit-img" src="${fruit.img}" alt="${fruit.name}">
-  `;
-  fruitName.textContent=fruit.name;
-  dateText.textContent=`📅 ${getToday()}`;
+// 🧐 檢查今天是否抽過
+function checkDailyStatus() {
+  const storedData = localStorage.getItem(STORAGE_KEY);
+  
+  if (storedData) {
+    const record = JSON.parse(storedData);
+    const today = getToday();
 
-  setTimeout(()=>{ postcard.style.left="0px"; },500);
-  setTimeout(()=>{ downloadBtn.style.display="block"; },3500);
+    // 如果紀錄的日期是今天
+    if (record.date === today) {
+      // 1. 禁用按鈕
+      drawBtn.disabled = true;
+      drawBtn.textContent = "明日再來！(今日已抽)";
+
+      // 2. 顯示 Printer 區域
+      printer.style.display = "flex";
+
+      // 3. 填入上次抽到的內容
+      renderCardContent(record.fruitIndex, record.auroraIndex);
+
+      // 4. 直接把明信片放在正確位置 (不要動畫)
+      postcard.classList.add("no-anim"); 
+      postcard.style.left = "0px";
+
+      // 5. 顯示下載按鈕
+      downloadBtn.style.display = "block";
+    }
+  }
+}
+
+drawBtn.addEventListener("click", () => {
+  // 再次檢查 (防呆)
+  const storedData = localStorage.getItem(STORAGE_KEY);
+  if(storedData && JSON.parse(storedData).date === getToday()) return;
+
+  // 1. 隨機產生
+  const fIndex = Math.floor(Math.random() * fruits.length);
+  const aIndex = Math.floor(Math.random() * auroraColors.length);
+
+  // 2. 存檔！把所有資訊存成 JSON
+  const record = {
+    date: getToday(),
+    fruitIndex: fIndex,
+    auroraIndex: aIndex
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+
+  // 3. 設定畫面
+  printer.style.display = "flex";
+  postcard.classList.remove("no-anim"); // 確保抽卡時有動畫
+  postcard.style.left = "-620px";
+  downloadBtn.style.display = "none";
+
+  // 4. 渲染內容
+  renderCardContent(fIndex, aIndex);
+
+  // 5. 執行動畫
+  setTimeout(()=>{ postcard.style.left="0px"; }, 500);
+  
+  // 6. 動畫結束後顯示下載按鈕與禁用抽卡按鈕
+  setTimeout(()=>{ 
+    downloadBtn.style.display="block"; 
+    drawBtn.disabled = true;
+    drawBtn.textContent = "明日再來！(今日已抽)";
+  }, 3500);
 });
 
 downloadBtn.addEventListener("click",()=>{
   html2canvas(postcard).then(canvas=>{
-    const link=document.createElement("a");
-    link.download="fruit-postcard.png";
-    link.href=canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = `fruit-postcard-${getToday()}.png`;
+    link.href = canvas.toDataURL("image/png");
     link.click();
   });
 });
+
+// 初始化檢查
+checkDailyStatus();
 </script>
 
 </body>
