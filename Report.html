@@ -205,12 +205,17 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) { location.href = "Login.html"; return; }
 
   currentUser = user;
-  myInviteCode.textContent = user.uid;
-  document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
+  try {
+    myInviteCode.textContent = user.uid;
+    document.getElementById("titleName").textContent = `🏆 ${user.email} 的運動報表`;
 
-  await ensureUserExists();
-  await loadMyStats();
-  await loadFriendData();
+    await ensureUserExists();
+    await loadMyStats();
+    await loadFriendData();
+  } catch (err) {
+    console.error('Report init failed', err);
+    showToast('載入報表頁失敗，請於 console 查看錯誤');
+  }
 });
 
 /* ---------------- 若 Firestore 沒資料 → 自動補 ---------------- */
@@ -384,18 +389,23 @@ document.getElementById('inviteEmailInput').addEventListener('keydown', async (e
 
 /* ---------------- 顯示我的 sportReports（簡易） ---------------- */
 async function loadMyReports(){
-  const snaps = await getDocs(collection(db, 'users', currentUser.uid, 'sportReports'));
-  const list = document.createElement('div');
-  list.style.maxHeight='240px'; list.style.overflow='auto';
-  snaps.forEach(s=>{
-    const d = s.data();
-    const el = document.createElement('div');
-    const ts = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '';
-    el.innerHTML = `<div style="padding:6px;border-bottom:1px solid rgba(255,255,255,0.04)"><b>${d.game}</b> ${d.score} <br><small>${ts}</small></div>`;
-    list.appendChild(el);
-  });
-  if (snaps.empty) list.innerHTML = '<p>尚無運動報告</p>';
-  showModal({ title: '我的運動紀錄', body: list, buttons:[{label:'關閉',cls:'ghost',onClick:()=>{}}] });
+  try {
+    const snaps = await getDocs(collection(db, 'users', currentUser.uid, 'sportReports'));
+    const list = document.createElement('div');
+    list.style.maxHeight='240px'; list.style.overflow='auto';
+    snaps.forEach(s=>{
+      const d = s.data();
+      const el = document.createElement('div');
+      const ts = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '';
+      el.innerHTML = `<div style="padding:6px;border-bottom:1px solid rgba(255,255,255,0.04)"><b>${d.game}</b> ${d.score} <br><small>${ts}</small></div>`;
+      list.appendChild(el);
+    });
+    if (snaps.empty) list.innerHTML = '<p>尚無運動報告</p>';
+    showModal({ title: '我的運動紀錄', body: list, buttons:[{label:'關閉',cls:'ghost',onClick:()=>{}}] });
+  } catch (err) {
+    console.error('loadMyReports failed', err);
+    showToast('載入運動紀錄失敗');
+  }
 }
 
 // 在頁面加入按鈕以檢視我的報告

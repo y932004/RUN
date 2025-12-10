@@ -290,7 +290,11 @@ import { hasVideoDevice, showCameraMissing } from './ui.js';
 
 async function startCameraIfAvailable(){
     const ok = await hasVideoDevice();
-    if (!ok) { try{ showCameraMissing(); } catch(e){ console.warn(e); } return; }
+    if (!ok) { 
+        try{ showCameraMissing(); } catch(e){ console.warn(e); }
+        alert('找不到攝影機裝置或未授權，請連接攝影機或允許權限');
+        return; 
+    }
 
     const cameraUtils = new Camera(videoElement, {
         onFrame: async () => { 
@@ -300,7 +304,7 @@ async function startCameraIfAvailable(){
         width: 320, height: 240
     });
 
-    try { cameraUtils.start(); } catch (e) { console.warn('camera start failed', e); try{ showCameraMissing(); }catch{} }
+    try { cameraUtils.start(); } catch (e) { console.warn('camera start failed', e); try{ showCameraMissing(); }catch{}; alert('啟動攝影機失敗：' + (e.message||e)); }
 }
 
 startCameraIfAvailable();
