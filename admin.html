@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>RUNAway 管理者後台</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f0f0f0;
+      padding: 20px;
+    }
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 1200px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2, h3 {
+      text-align: center;
+    }
+    pre {
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    .section {
+      margin-top: 30px;
+      padding: 15px;
+      background: #fafafa;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+    input {
+      padding: 6px;
+      width: 200px;
+    }
+    button {
+      padding: 6px 12px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>RUNAway 管理者後台</h2>
+
+  <div class="section">
+    <h3>👤 所有玩家（users）</h3>
+    <pre id="users"></pre>
+  </div>
+
+  <div class="section">
+    <h3>🎮 所有遊戲紀錄（game_sessions）</h3>
+    <pre id="sessions"></pre>
+  </div>
+
+  <div class="section">
+    <h3>💰 金幣交易紀錄（coin_transactions）</h3>
+    <pre id="transactions"></pre>
+  </div>
+
+  <div class="section">
+    <h3>🛒 商店商品（store_items）</h3>
+    <pre id="items"></pre>
+  </div>
+
+  <div class="section">
+    <h3>💵 調整玩家金幣</h3>
+    玩家 ID：<input id="targetUser">
+    金額（可負數）：<input id="amount">
+    <button onclick="changeCoins()">送出</button>
+    <pre id="coinResult"></pre>
+  </div>
+
+  <div class="section">
+    <h3>➕ 新增商店商品</h3>
+    代碼：<input id="itemCode">
+    名稱：<input id="itemName">
+    類型：<input id="itemType" placeholder="scene / character">
+    價格：<input id="itemPrice">
+    Emoji：<input id="itemEmoji">
+    <button onclick="addItem()">新增</button>
+    <pre id="newItemResult"></pre>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "👉在這裡貼你的 Supabase URL👈";
+const SUPABASE_ANON = "👉在這裡貼你的 anon key👈";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+main();
+
+async function main() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    alert("請先登入");
+    window.location.href = "login.html";
+    return;
+  }
+
+  // 確認是否是 admin
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_user_id", user.id)
+    .single();
+
+  if (profile.role !== "admin") {
+    alert("你不是管理者");
+    window.location.href = "dashboard.html";
+    return;
+  }
+
+  // 1. 所有玩家
+  const users = await supabase.from("users").select("*");
+  document.getElementById("users").textContent =
+    JSON.stringify(users.data, null, 2);
+
+  // 2. 所有遊戲紀錄
+  const sessions = await supabase
+    .from("game_sessions")
+    .select("*, games(name)")
+    .order("id", { ascending: false });
+  document.getElementById("sessions").textContent =
+    JSON.stringify(sessions.data, null, 2);
+
+  // 3. 所有金幣交易
+  const transactions = await supabase
+    .from("coin_transactions")
+    .select("*")
+    .order("id", { ascending: false });
+  document.getElementById("transactions").textContent =
+    JSON.stringify(transactions.data, null, 2);
+
+  // 4. 所有商店商品
+  const items = await supabase
+    .from("store_items")
+    .select("*")
+    .order("id", { ascending: true });
+  document.getElementById("items").textContent =
+    JSON.stringify(items.data, null, 2);
+}
+
+/* ---------------- 調整金幣 ---------------- */
+async function changeCoins() {
+  const userId = parseInt(document.getElementById("targetUser").value);
+  const amount = parseInt(document.getElementById("amount").value);
+
+  if (!userId || !amount) {
+    alert("請輸入玩家 ID 與金額");
+    return;
+  }
+
+  // 建立交易紀錄
+  const { error: txErr } = await supabase
+    .from("coin_transactions")
+    .insert({
+      user_id: userId,
+      change_amount: amount,
+      reason: "admin_adjust"
+    });
+
+  if (txErr) {
+    document.getElementById("coinResult").textContent =
+      "錯誤： " + txErr.message;
+    return;
+  }
+
+  // 更新錢包
+  await supabase.rpc("increment_wallet", {  // 如果你沒有函式，我可以幫你寫
+    x_user_id: userId,
+    x_amount: amount
+  });
+
+  document.getElementById("coinResult").textContent =
+    "成功操作金幣！";
+}
+
+/* ---------------- 新增商品 ---------------- */
+async function addItem() {
+  const code = document.getElementById("itemCode").value;
+  const name = document.getElementById("itemName").value;
+  const type = document.getElementById("itemType").value;
+  const price = parseInt(document.getElementById("itemPrice").value);
+  const emoji = document.getElementById("itemEmoji").value;
+
+  const { error } = await supabase
+    .from("store_items")
+    .insert({
+      code, name, type, price, emoji
+    });
+
+  if (error) {
+    document.getElementById("newItemResult").textContent =
+      "錯誤：" + error.message;
+  } else {
+    document.getElementById("newItemResult").textContent =
+      "新增成功！";
+  }
+}
+</script>
+
+</body>
+</html>
